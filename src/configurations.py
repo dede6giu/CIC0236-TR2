@@ -1,4 +1,4 @@
-# Program config
+# Programa config
 hl = 30 # Console bar size
 
 # Server info

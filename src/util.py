@@ -1,13 +1,16 @@
 def get_meta_until(raw: bytes, n: int = -1) -> (bytes, {str, str|bytes}):
     """
-    MUST be used after getting the command return type.
-    Expects raw to be bytes and of the format:
+        raw:bytes   raw byte data
+        n:int       qtd de headers, padrão -1. negativo implica que a msg inteira é header
+    ->  (bytes, {str, str|bytes})   (message type, {header key, header value})
+
+    Espera-se que raw seja do formato:
         b'key1=value1|key2=value2|...|keyN=valueN|payload'
     """
     result = {}
     auxres = []
 
-    # Gather metadata camps
+    # Adquirir headers
     pos = 0
     amt = 0
     firstloop = 0
@@ -25,12 +28,12 @@ def get_meta_until(raw: bytes, n: int = -1) -> (bytes, {str, str|bytes}):
     rtrnMsg = auxres[0]
     auxres.pop(0)
 
-    # Split metadata into key->value
+    # Quebrar headers em key->value
     lastbytes = 1 if n >= 0 else 0
     for i in range(len(auxres)-lastbytes):
         kv = (auxres[i].decode()).split('=')
         result[kv[0]] = kv[1]
-    # If last field is data, save it as bytes
+    # Se o último campo for data, salvar como bytes
     if lastbytes == 1:
         result["payload"] = auxres[-1]
 

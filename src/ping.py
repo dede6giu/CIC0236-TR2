@@ -4,9 +4,13 @@ from util import get_meta_until as process_message
 from time import strftime, gmtime
 
 def ping() -> None:
+    """
+    Envia um PING ao servidor
+    """
     print("=-"*cfg.hl)
     print("Enviando PING...")
 
+    # Envia pacote PING
     packet = "PING"
     try:
         rawdata, RTT = cs.send_message(packet)
@@ -14,6 +18,7 @@ def ping() -> None:
         print("Erro: SERVER TIMEOUT")
         return
     
+    # Processa retorno
     rtrnMsg, data = process_message(rawdata)
     if rtrnMsg == b'PONG':    
         print("PONG!")
@@ -23,3 +28,4 @@ def ping() -> None:
         print(f'Erro: {data["msg"]}')
     else:
         print(f'Retorno desconhecido do servidor: {rawdata}')
+    return

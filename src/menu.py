@@ -36,3 +36,4 @@ def main_menu() -> None:
                 print("Opção inválida")
         
         time.sleep(1.2)
+    return
