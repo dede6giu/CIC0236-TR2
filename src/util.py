@@ -1,8 +1,26 @@
-def get_meta_until(raw: bytes, n: int = -1) -> (bytes, {str, str|bytes}):
+import configurations as cfg
+
+def get_return_type(raw: bytes) -> (str, bytes):
     """
-        raw:bytes   raw byte data
-        n:int       qtd de headers, padrão -1. negativo implica que a msg inteira é header
-    ->  (bytes, {str, str|bytes})   (message type, {header key, header value})
+        raw:bytes       raw byte data
+    ->  (str, bytes)    (message header, resto da mensagem)
+    
+    Extrai apenas o tipo do retorno da mensagem.
+    Retorna ('ERROR', b'msg=Mensagem incompreensível do servidor') em erro.
+    """
+    firstbar = raw.find(b'|')
+    if firstbar != -1:
+        returntype = raw[0:firstbar].decode(cfg.encoding)
+        data = raw[firstbar+1:]
+        return (returntype, data)
+    else:
+        return ('ERROR', 'msg=Mensagem incompreensivel do servidor'.encode(cfg.encoding))
+
+def get_meta_until(raw: bytes, n: int = -1) -> {str, str|bytes}:
+    """
+        raw:bytes           raw byte data
+        n:int               qtd headers, padrão -1. negativo == msg inteira é header
+    ->  {str, str|bytes}    {header key, header value}
 
     Espera-se que raw seja do formato:
         b'key1=value1|key2=value2|...|keyN=valueN|payload'
@@ -24,9 +42,6 @@ def get_meta_until(raw: bytes, n: int = -1) -> (bytes, {str, str|bytes}):
             pos = aux
             amt += 1
         firstloop = 1
-    
-    rtrnMsg = auxres[0]
-    auxres.pop(0)
 
     # Quebrar headers em key->value
     lastbytes = 1 if n >= 0 else 0
@@ -37,4 +52,4 @@ def get_meta_until(raw: bytes, n: int = -1) -> (bytes, {str, str|bytes}):
     if lastbytes == 1:
         result["payload"] = auxres[-1]
 
-    return (rtrnMsg, result)
+    return result

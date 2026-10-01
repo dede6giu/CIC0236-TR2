@@ -1,6 +1,7 @@
-import configurations as cfg
-import ping
 import time
+import configurations as cfg
+from ping import ping
+from saw import main as saw
 
 def main_menu() -> None:
     print("=-"*cfg.hl)
@@ -27,8 +28,10 @@ def main_menu() -> None:
 
         match opcao:
             case 0:
-                ping.ping()
-            case 1|2|3|4|7|8:
+                ping()
+            case 1:
+                saw()
+            case 2|3|4|7|8:
                 print("Não implementado!")
             case 9:
                 break

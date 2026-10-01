@@ -1,6 +1,6 @@
 import configurations as cfg
 import clientserver as cs
-from util import get_meta_until as process_message
+import util
 from time import strftime, gmtime
 
 def ping() -> None:
@@ -12,19 +12,13 @@ def ping() -> None:
 
     # Envia pacote PING
     packet = "PING"
-    try:
-        rawdata, RTT = cs.send_message(packet)
-    except socket.timeout:
-        print("Erro: SERVER TIMEOUT")
-        return
-    
-    # Processa retorno
-    rtrnMsg, data = process_message(rawdata)
-    if rtrnMsg == b'PONG':    
+    rtrnMsg, rawdata, RTT = cs.send_pick_header(packet)
+    data = util.get_meta_until(rawdata)
+    if rtrnMsg == 'PONG':    
         print("PONG!")
         print(f"RTT: {RTT*1000}ms")
         print(f"Server Timestamp: {strftime("%a, %d %b %Y %H:%M:%S", gmtime(float(data["time"])))}")
-    elif rtrnMsg == b'ERROR':
+    elif rtrnMsg == 'ERROR':
         print(f'Erro: {data["msg"]}')
     else:
         print(f'Retorno desconhecido do servidor: {rawdata}')
