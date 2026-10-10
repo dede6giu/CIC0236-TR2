@@ -74,6 +74,9 @@ def print_loadbar(current: int, total: int, *,
                 charLeft: str = '「', charRight: str = '」',
                 doNumCount: bool = True,
                 blocksOnBar: int = 25) -> None:
+    """
+    Cria uma barra de carregamento.
+    """
     
     percent = (current / total)
     fill = charFilled * int(percent * blocksOnBar)
@@ -89,7 +92,7 @@ def print_loadbar(current: int, total: int, *,
         loadbar += f" {current}/{total} "
     else:
         loadbar += " "
-    loadbar += f"({percent*100:.2f}%)"
+    loadbar += f"({int(percent*100)}%)"
     endchar = "\n" if current == total else ""
     
     print(loadbar, end=endchar)

@@ -10,7 +10,32 @@ class ReqResult(Enum):
     TIMEOUT = 2
     ERROR = 3
 
+def send_handshake(clientSocket: socket) -> ReqResult:
+    """
+        clientSocket:socket     socket para o handshake
+    ->  ReqResult               sucesso/fracasso da operação
+
+    Realiza o handshake e transforma em um resultado legíve
+    para o módulo.
+    """
+
+    handshakeSuccess = cs.handshake(clientSocket)
+    if handshakeSuccess == "OK":
+        return ReqResult.SUCCESS
+    if handshakeSuccess == "TIMEOUT":
+        return ReqResult.TIMEOUT
+    return ReqResult.ERRO
+
 def send_req(clientSocket: socket, seq: int) -> (ReqResult, str|bytes):
+    """
+        clientSocket:socket     conexão (já com handshake)
+        seq:int                 número de sequência
+    ->  (ReqResult, str|bytes)  (resultado, msg|payload)
+
+    Requisita a sequência seq para o servidor e já retorna o payload
+    em caso de sucesso.
+    """
+
     pacote = f'REQ|seq={seq}'
     rtrnMsg, rawdata, RTT = cs.send_pick_header(pacote, clientSocket)
 
@@ -33,19 +58,27 @@ def send_req(clientSocket: socket, seq: int) -> (ReqResult, str|bytes):
     return (ReqResult.SUCCESS, data["payload"])
 
 def send_ack(clientSocket: socket, seq: int) -> ReqResult:
+    """
+        clientSocket:socket     conexão (já com handshake)
+        seq:int                 número de sequência
+    ->  ReqResult               sucesso/fracasso da operação
+
+    Envia um ACK(seq) para o servidor.
+    """
+
     pacote = f"ACK|seq={seq}"
     rtrnMsg, rawdata, RTT = cs.send_pick_header(pacote, clientSocket)
     return (rtrnMsg, rawdata)
 
-def send_handshake(clientSocket: socket) -> ReqResult:
-    handshakeSuccess = cs.handshake(clientSocket)
-    if handshakeSuccess == "OK":
-        return ReqResult.SUCCESS
-    if handshakeSuccess == "TIMEOUT":
-        return ReqResult.TIMEOUT
-    return ReqResult.ERRO
+def saw(clientSocket: socket, filePath: str) -> ReqResult:
+    """
+        clientSocket:socket     conexão (já com handshake)
+        filePath:str            onde salvar o arquivo
+    ->  ReqResult               sucesso/fracasso da operação
 
-def saw(clientSocket: socket, filePath) -> ReqResult:
+    Executa o protocolo Stop-and-Wait para baixar um arquivo.
+    """
+
     # Execução
     seqCurrent = 0
     while (seqCurrent < cfg.seqTotalAmount):
@@ -82,6 +115,10 @@ def saw(clientSocket: socket, filePath) -> ReqResult:
     return ReqResult.SUCCESS
 
 def main() -> None:
+    """
+    Embrulha o método Stop And Wait em uma função. 
+    """
+
     clientSocket = cs.make_socket()
 
     # Realizar handshake
@@ -121,7 +158,7 @@ def main() -> None:
 
     # Verificação do arquivo
     if cfg.checksum != util.do_md5(filePath):
-        print(f"ERRO: Checksum diferente")
+        print(f"ERRO: Checksum diferente, tente rebaixar")
         return
 
     # SUCESSO

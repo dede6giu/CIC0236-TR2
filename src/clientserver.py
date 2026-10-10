@@ -8,7 +8,7 @@ def make_socket() -> socket:
     clientSocket.settimeout(cfg.basetimeout)
     return clientSocket
 
-def send_pick_header(pacote, clientSocket: socket = None) -> (str, bytes, int):
+def send_pick_header(pacote: str, clientSocket: socket = None) -> (str, bytes, int):
     """
         pacote:str          pacote para enviar
     ->  (str, bytes, int)   (return message, returning data, RTT)
