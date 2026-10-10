@@ -3,22 +3,27 @@ import time
 import configurations as cfg
 import util
 
-def send_pick_header(pacote) -> (str, bytes, int):
+def make_socket() -> socket:
+    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    clientSocket.settimeout(cfg.basetimeout)
+    return clientSocket
+
+def send_pick_header(pacote, clientSocket: socket = None) -> (str, bytes, int):
     """
         pacote:str          pacote para enviar
     ->  (str, bytes, int)   (return message, returning data, RTT)
 
     Envia uma mensagem para o servidor.
-    Em timeout, retorna ("Timeout", ..., ...)
+    Em timeout, retorna ("TIMEOUT", ..., ...)
     """
     try:
-        rawdata, RTT = send_message(pacote)
+        rawdata, RTT = send_message(pacote, clientSocket)
     except socket.timeout:
-        return ("TIMEOUT", "msg=Socket timeout".encode(cfg.encoding), 0)
+        return ("TIMEOUT", b"msg=Socket timeout", 0)
     rtrnMsg, data = util.get_return_type(rawdata)
     return (rtrnMsg, data, RTT) 
 
-def send_message(pacote: str) -> (bytes, int):
+def send_message(pacote: str, clientSocket: socket = None) -> (bytes, int):
     """
         pacote:str    pacote para enviar
     ->  (bytes, int)  (returning data, RTT)
@@ -28,20 +33,20 @@ def send_message(pacote: str) -> (bytes, int):
     """
 
     # Socket setup
-    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    clientSocket.settimeout(cfg.timeout)
+    if clientSocket == None:
+        clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        clientSocket.settimeout(cfg.basetimeout)
 
     # Enviar mensagem
     timeStart = time.time()
     clientSocket.sendto(pacote.encode(cfg.encoding), cfg.server)
 
     # Nota: talvez timeout, levanta socket.timeout
-    data, flags = clientSocket.recvfrom(cfg.pcksize)
+    rawdata, flags = clientSocket.recvfrom(cfg.pcksize)
     timeEnd = time.time()
-    rawdata = data
-    return (data, timeEnd-timeStart)
+    return (rawdata, timeEnd-timeStart)
 
-def handshake() -> bool:
+def handshake(clientSocket: socket) -> str:
     """
     ->  bool    sucesso do handshake? 
 
@@ -51,19 +56,22 @@ def handshake() -> bool:
     # Preparar HELLO
     pacote = "HELLO|"
     pacote += f"grupo={cfg.grupo}|"
-    pacote += f"segment_size={cfg.defsegsize}|"
+    pacote += f"segment_size={cfg.seqSizeDefault}|"
     pacote += f"file={cfg.filetype}"
     
     # Enviar HELLO
-    rtrnMsg, rawdata, RTT = send_pick_header(pacote)
+    rtrnMsg, rawdata, RTT = send_pick_header(pacote, clientSocket)
     data = util.get_meta_until(rawdata)
 
     if rtrnMsg == "OK":
-        cfg.filesize = data["file_size"]
+        # print(rawdata.decode(cfg.encoding))
+        cfg.filesize = int(data["file_size"])
         cfg.checksum = data["checksum"]
         cfg.seed = data["seed"]
-        cfg.segqntt = data["total_segments"]
-        cfg.segsize = data["segment_size"]
-        return True
+        cfg.seqTotalAmount = int(data["total_segments"])
+        cfg.seqSize = int(data["segment_size"])
+        return "OK"
+    elif rtrnMsg == "TIMEOUT":
+        return "TIMEOUT"
     else:
-        return False
+        return "ERROR"

@@ -1,3 +1,11 @@
+# vscode
+.vscode/
+
+# caminho padrão de download
+results/
+
+####### PYTHON .GITIGNORE #######
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

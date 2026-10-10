@@ -1,6 +1,5 @@
 # Programa config
-## Console bar size
-hl = 30 
+hl = 30 ## Tamanho console bar
 
 # Server info
 serverName = '137.131.178.229'
@@ -8,18 +7,23 @@ serverPort = 8080
 server = (serverName, serverPort)
 
 # Configs
-basetimout = 5.0
+basetimeout = 5.0
 timeout = 5.0
-pcksize = 2048
+pcksize = 2048 ## recvfrom()
 encoding = 'utf-8'
 grupo = 'grupo03'
-## small / medium / large
-filetype = 'small'
-defsegsize = 2048
+filetype = 'small' ## small / medium / large
+seqSizeDefault = 512
+maxRetries = 3
 
-# Handshake parameters
+# Caminho Arquivos
+pathsml = './results/small.file'
+pathmed = './results/medium.file'
+pathbig = './results/large.file'
+
+# Parâmetros Handshake
 filesize = 0
 checksum = ''
 seed = ''
-segqntt = ''
-segsize = 2048
+seqTotalAmount = 0
+seqSize = 2048

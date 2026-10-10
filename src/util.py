@@ -1,4 +1,6 @@
 import configurations as cfg
+import hashlib
+from math import floor
 
 def get_return_type(raw: bytes) -> (str, bytes):
     """
@@ -14,7 +16,7 @@ def get_return_type(raw: bytes) -> (str, bytes):
         data = raw[firstbar+1:]
         return (returntype, data)
     else:
-        return ('ERROR', 'msg=Mensagem incompreensivel do servidor'.encode(cfg.encoding))
+        return ('ERROR', b'msg=Mensagem incompreensivel do servidor')
 
 def get_meta_until(raw: bytes, n: int = -1) -> {str, str|bytes}:
     """
@@ -53,3 +55,41 @@ def get_meta_until(raw: bytes, n: int = -1) -> {str, str|bytes}:
         result["payload"] = auxres[-1]
 
     return result
+
+def do_md5(filePath: str) -> str:
+    """
+        filePath:str    caminho do arquivo
+    ->  str             MD5 resultante
+    
+    Calcula o MD5 do arquivo filePath.
+    """
+
+    with open(filePath, "rb") as f:
+        content = f.read()
+    return (hashlib.md5(content)).hexdigest()
+
+def print_loadbar(current: int, total: int, *, 
+                charFilled: str = '█', charEmpty: str = ' ',
+                phraseBefore: str = 'Baixando: ',
+                charLeft: str = '「', charRight: str = '」',
+                doNumCount: bool = True,
+                blocksOnBar: int = 25) -> None:
+    
+    percent = (current / total)
+    fill = charFilled * int(percent * blocksOnBar)
+    empty = charEmpty * int(blocksOnBar - (percent * blocksOnBar))
+    
+    loadbar = '\r'
+    loadbar += phraseBefore
+    loadbar += charLeft
+    loadbar += fill
+    loadbar += empty
+    loadbar += charRight
+    if doNumCount:
+        loadbar += f" {current}/{total} "
+    else:
+        loadbar += " "
+    loadbar += f"({percent*100:.2f}%)"
+    endchar = "\n" if current == total else ""
+    
+    print(loadbar, end=endchar)

@@ -68,9 +68,9 @@ if __name__ == "__main__":
       break
     elif message == 'HELLO':
       clientpackt["grupo"] = "grupo03"
-      clientpackt["segsize"] = "512"
+      clientpackt["seqSize"] = "512"
       clientpackt["filesize"] = "small"
-      pacote = f'HELLO|grupo={clientpackt["grupo"]}|segment_size={clientpackt["segsize"]}|file={clientpackt["filesize"]}'
+      pacote = f'HELLO|grupo={clientpackt["grupo"]}|segment_size={clientpackt["seqSize"]}|file={clientpackt["filesize"]}'
     elif message == 'REQ':
       clientpackt["segval"] = (input('Input valor seq: ')).strip()
       pacote = f'REQ|seq={clientpackt["segval"]}'

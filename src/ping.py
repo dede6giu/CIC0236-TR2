@@ -1,7 +1,7 @@
 import configurations as cfg
 import clientserver as cs
 import util
-from time import strftime, gmtime
+import time
 
 def ping() -> None:
     """
@@ -17,9 +17,12 @@ def ping() -> None:
     if rtrnMsg == 'PONG':    
         print("PONG!")
         print(f"RTT: {RTT*1000}ms")
-        print(f"Server Timestamp: {strftime("%a, %d %b %Y %H:%M:%S", gmtime(float(data["time"])))}")
+        serverTime = time.gmtime(float(data["time"]) - time.timezone)
+        print(f"Server Timestamp: {time.strftime(f"%a, %d %b %Y %H:%M:%S UTC{time.tzname[0]}", serverTime)}")
     elif rtrnMsg == 'ERROR':
         print(f'Erro: {data["msg"]}')
+    elif rtrnMsg == 'TIMEOUT':
+        print(f'Timeout: {data["msg"]}')
     else:
         print(f'Retorno desconhecido do servidor: {rawdata}')
     return
