@@ -17,9 +17,9 @@ seqSizeDefault = 512
 maxRetries = 3
 
 # Caminho Arquivos
-pathsml = './results/small.file'
-pathmed = './results/medium.file'
-pathbig = './results/large.file'
+pathsml = './results/small'
+pathmed = './results/medium'
+pathbig = './results/large'
 
 # Parâmetros Handshake
 filesize = 0

@@ -8,34 +8,35 @@ def make_socket() -> socket:
     clientSocket.settimeout(cfg.basetimeout)
     return clientSocket
 
-def send_pick_header(pacote: str, clientSocket: socket = None) -> (str, bytes, int):
+def close_socket(clientSocket: socket) -> None:
+    clientSocket.close()
+    return
+
+def send_pick_header(clientSocket: socket, pacote: str) -> (str, bytes, float):
     """
+        clientSocket:socket socket
         pacote:str          pacote para enviar
-    ->  (str, bytes, int)   (return message, returning data, RTT)
+    ->  (str, bytes, float) (return message, returning data, RTT)
 
     Envia uma mensagem para o servidor.
     Em timeout, retorna ("TIMEOUT", ..., ...)
     """
     try:
-        rawdata, RTT = send_message(pacote, clientSocket)
+        rawdata, RTT = send_message(clientSocket, pacote)
     except socket.timeout:
         return ("TIMEOUT", b"msg=Socket timeout", 0)
     rtrnMsg, data = util.get_return_type(rawdata)
     return (rtrnMsg, data, RTT) 
 
-def send_message(pacote: str, clientSocket: socket = None) -> (bytes, int):
+def send_message(clientSocket: socket, pacote: str) -> (bytes, float):
     """
-        pacote:str    pacote para enviar
-    ->  (bytes, int)  (returning data, RTT)
+        clientSocket:socket socket
+        pacote:str          pacote para enviar
+    ->  (bytes, float)      (returning data, RTT)
 
     Envia uma mensagem para o servidor.
     Erro socket.timeout se ocorrer timeout.
     """
-
-    # Socket setup
-    if clientSocket == None:
-        clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        clientSocket.settimeout(cfg.basetimeout)
 
     # Enviar mensagem
     timeStart = time.time()
@@ -60,7 +61,7 @@ def handshake(clientSocket: socket) -> str:
     pacote += f"file={cfg.filetype}"
     
     # Enviar HELLO
-    rtrnMsg, rawdata, RTT = send_pick_header(pacote, clientSocket)
+    rtrnMsg, rawdata, RTT = send_pick_header(clientSocket, pacote)
     data = util.get_meta_until(rawdata)
 
     if rtrnMsg == "OK":
@@ -75,3 +76,27 @@ def handshake(clientSocket: socket) -> str:
         return "TIMEOUT"
     else:
         return "ERROR"
+
+def fin(clientSocket: socket, checksum: str) -> str:
+    """
+        checksum:str    Checksum para enviar ao servidor
+    ->  str             Integridade do arquivo
+
+    Envia FIN ao servidor, e já retorna o valor da resposta DONE
+    do servidor. Tenta restransmissões de acordo com cfg.maxRetries,
+    se falhar nisso retornará False
+    """
+
+    pacote = f"FIN|checksum={checksum}"
+    
+    attempts = 0
+    while attempts < cfg.maxRetries:
+        rtrnMsg, rawdata, RTT = send_pick_header(clientSocket, pacote)
+        if rtrnMsg == "DONE":
+            break
+        attempts += 1
+    else:
+        return rtrnMsg
+
+    data = util.get_meta_until(rawdata)
+    return "SUCCESS" if int(data["ok"]) == 1 else "FAIL"

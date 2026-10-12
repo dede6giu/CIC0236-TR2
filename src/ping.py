@@ -3,7 +3,7 @@ import clientserver as cs
 import util
 import time
 
-def ping() -> None:
+def ping(clientSocket: socket) -> None:
     """
     Envia um PING ao servidor
     """
@@ -12,7 +12,7 @@ def ping() -> None:
 
     # Envia pacote PING
     packet = "PING"
-    rtrnMsg, rawdata, RTT = cs.send_pick_header(packet)
+    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, packet)
     data = util.get_meta_until(rawdata)
     if rtrnMsg == 'PONG':    
         print("PONG!")

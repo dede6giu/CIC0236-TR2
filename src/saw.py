@@ -37,7 +37,7 @@ def send_req(clientSocket: socket, seq: int) -> (ReqResult, str|bytes):
     """
 
     pacote = f'REQ|seq={seq}'
-    rtrnMsg, rawdata, RTT = cs.send_pick_header(pacote, clientSocket)
+    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, pacote)
 
     if rtrnMsg == 'ERROR':
         data = util.get_meta_until(rawdata)
@@ -67,7 +67,7 @@ def send_ack(clientSocket: socket, seq: int) -> ReqResult:
     """
 
     pacote = f"ACK|seq={seq}"
-    rtrnMsg, rawdata, RTT = cs.send_pick_header(pacote, clientSocket)
+    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, pacote)
     return (rtrnMsg, rawdata)
 
 def saw(clientSocket: socket, filePath: str) -> ReqResult:
@@ -114,22 +114,18 @@ def saw(clientSocket: socket, filePath: str) -> ReqResult:
 
     return ReqResult.SUCCESS
 
-def main() -> None:
+def main(clientSocket: socket) -> None:
     """
     Embrulha o método Stop And Wait em uma função. 
     """
-
-    clientSocket = cs.make_socket()
 
     # Realizar handshake
     aux = send_handshake(clientSocket)
     if aux == ReqResult.ERROR:
         print("ERRO: Handshake falhou")
-        clientSocket.close()
         return
     if aux == ReqResult.TIMEOUT:
         print("TIMEOUT: Servidor não respondeu ao handshake")
-        clientSocket.close()
         return
 
     # Caminho para o arquivo...
@@ -147,7 +143,6 @@ def main() -> None:
     resultOperation = saw(clientSocket, filePath)
     if resultOperation == ReqResult.TIMEOUT:
         print(f"TIMEOUT: O servidor não respondeu depois de {cfg.maxRetries} tentativas")
-        clientSocket.close()
         return
     elif resultOperation == ReqResult.ERROR:
         print(f"ERRO: Algum erro aconteceu")
@@ -157,11 +152,20 @@ def main() -> None:
         return
 
     # Verificação do arquivo
-    if cfg.checksum != util.do_md5(filePath):
-        print(f"ERRO: Checksum diferente, tente rebaixar")
-        return
+    receivedChecksum = util.do_md5(filePath)
+    fileStatus = cs.fin(clientSocket, receivedChecksum)
 
-    # SUCESSO
-    print(f"SUCESSO: Arquivo '{cfg.filetype}' baixado.")
+    if fileStatus == "SUCCESS":
+        print(f"SUCESSO: Arquivo '{cfg.filetype}' baixado e verificado")
+    elif fileStatus == "FAIL":
+        print(f"FALHA: Checksum de '{cfg.filetype}' não correspondeu")
+    elif fileStatus == "TIMEOUT":
+        print(
+            f"TIMEOUT: Servidor não respondeu a tempo, não foi possível"
+            f" verificar a integridade do arquivo '{cfg.filetype}' baixado.")
+    else:
+        print(
+            f"ERRO: Não foi possível verificar a integridade do "
+            f"arquivo '{cfg.filetype}' baixado.")
 
     return
