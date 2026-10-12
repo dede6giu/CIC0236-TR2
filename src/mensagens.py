@@ -2,14 +2,17 @@ import time
 
 class Pacote:
     def __init__(self, header: str, RTT: float):
-        self.header = header
-        self.RTT = RTT
+        self.header = header.upper()
+        self.RTT = float(RTT)
         self.clientSide = self.RTT < 0
 
     def __str__(self):
         return self.stringify()
 
-    def stringify(self):
+    def __bytes__(self):
+        return self.stringify().encode()
+
+    def stringify(self) -> str:
         return self.header
 
     def get_meta_until(self, raw: bytes, n: int = -1) -> {str, str|bytes}:
@@ -67,6 +70,7 @@ class Timeout(Pacote):
         Pacote.__init__(self, "TIMEOUT", -1)
         self.msg = msg
 
+
 class Ping(Pacote):
     def __init__(self):
         Pacote.__init__(self, "PING", -1)
@@ -82,3 +86,97 @@ class Pong(Pacote):
     def pretty_time(self):
         serverTime = time.gmtime(self.timestamp - time.timezone)
         return time.strftime(f"%a, %d %b %Y %H:%M:%S UTC{time.tzname[0]}", serverTime)
+
+
+class Hello(Pacote):
+    def __init__(self, 
+                grupo: str,
+                segmentSize: str,
+                file: str):
+        Pacote.__init__(self, "HELLO", -1)
+        self.id = grupo
+        self.segmentSize = segmentSize
+        self.file = file
+    
+    def stringify(self):
+        return (self.header 
+                + f"|grupo={self.id}"
+                + f"|segment_size={self.segmentSize}"
+                + f"|file={self.file}")
+
+class Ok(Pacote):
+    def __init__(self, RTT: float, rawdata: bytes):
+        Pacote.__init__(self, "OK", RTT)
+        data = self.get_meta_until(rawdata)
+        self.fileSize = int(data["file_size"])
+        self.checksum = str(data["checksum"])
+        self.seed = str(data["seed"])
+        self.totalSegments = int(data["total_segments"])
+        self.segmentSize = int(data["segment_size"])
+    
+    def stringify(self):
+        return (self.header 
+                + f"|file_size={self.fileSize}"
+                + f"|checksum={self.checksum}"
+                + f"|seed={self.seed}"
+                + f"|total_segments={self.totalSegments}"
+                + f"|segment_size={self.segmentSize}")
+
+
+class Req(Pacote):
+    def __init__(self, seq: int):
+        Pacote.__init__(self, "REQ", -1)
+        self.seq = int(seq)
+    
+    def stringify(self):
+        return (self.header 
+                + f"|seq={self.seq}")
+
+class Data(Pacote):
+    def __init__(self, RTT: float, rawdata: bytes):
+        Pacote.__init__(self, "DATA", RTT)
+        data = self.get_meta_until(rawdata, 2)
+        self.seq = int(data["seq"])
+        self.total = int(data["total"])
+        self.payload = bytes(data["payload"])
+    
+    def stringify(self):
+        return (self.header 
+                + f"|seq={self.seq}"
+                + f"|total={self.total}"
+                + f"|<payload_binário>")
+
+    def __bytes__(self):
+        return ((self.header 
+                + f"|seq={self.seq}"
+                + f"|total={self.total}"
+                + f"|").encode() + self.payload)
+
+class Ack(Pacote):
+    def __init__(self, seq: int):
+        Pacote.__init__(self, "ACK", -1)
+        self.seq = int(seq)
+    
+    def stringify(self):
+        return (self.header 
+                + f"|seq={self.seq}")
+
+
+class Fin(Pacote):
+    def __init__(self, checksum: str):
+        Pacote.__init__(self, "FIN", -1)
+        self.checksum = str(checksum)
+    
+    def stringify(self):
+        return (self.header 
+                + f"|checksum={self.checksum}")
+
+class Done(Pacote):
+    def __init__(self, RTT: float, rawdata: bytes):
+        Pacote.__init__(self, "DONE", RTT)
+        data = self.get_meta_until(rawdata)
+        self.ok = bool(data["ok"])
+    
+    def stringify(self):
+        return (self.header 
+                + f"|ok={1 if self.ok else 0}")

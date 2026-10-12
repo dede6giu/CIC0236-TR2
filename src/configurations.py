@@ -15,11 +15,7 @@ grupo = 'grupo03'
 filetype = 'small' ## small / medium / large
 seqSizeDefault = 512
 maxRetries = 3
-
-# Caminho Arquivos
-pathsml = './results/small'
-pathmed = './results/medium'
-pathbig = './results/large'
+filePathBase = './results/'
 
 # Parâmetros Handshake
 filesize = 0

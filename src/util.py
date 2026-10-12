@@ -1,6 +1,7 @@
 import configurations as cfg
 import hashlib
 from math import floor
+from time import time
 
 def get_return_type(raw: bytes) -> (str, bytes):
     """
@@ -18,43 +19,14 @@ def get_return_type(raw: bytes) -> (str, bytes):
     else:
         return ('ERROR', b'msg=Mensagem incompreensivel do servidor')
 
-def get_meta_until(raw: bytes, n: int = -1) -> {str, str|bytes}:
-    """
-        raw:bytes           raw byte data
-        n:int               qtd headers, padrão -1. negativo == msg inteira é header
-    ->  {str, str|bytes}    {header key, header value}
-
-    Espera-se que raw seja do formato:
-        b'key1=value1|key2=value2|...|keyN=valueN|payload'
-    """
-    result = {}
-    auxres = []
-
-    # Adquirir headers
-    pos = 0
-    amt = 0
-    firstloop = 0
-    while pos > -1:
-        aux = raw.find(b'|', pos+firstloop)
-        if aux == -1 or amt == n:
-            auxres.append(raw[pos+firstloop:])
-            break
-        else:
-            auxres.append(raw[pos+firstloop:aux])
-            pos = aux
-            amt += 1
-        firstloop = 1
-
-    # Quebrar headers em key->value
-    lastbytes = 1 if n >= 0 else 0
-    for i in range(len(auxres)-lastbytes):
-        kv = (auxres[i].decode()).split('=')
-        result[kv[0]] = kv[1]
-    # Se o último campo for data, salvar como bytes
-    if lastbytes == 1:
-        result["payload"] = auxres[-1]
-
-    return result
+def get_file_path(hsOk: msg.Ok):
+    filePath = cfg.filePathBase
+    if hsOk == None:
+        filePath += str(int(time()))
+        return filePath
+    filePath += str(hsOk.seed)
+    filePath += f"_({cfg.filetype})"
+    return filePath
 
 def do_md5(filePath: str) -> str:
     """
@@ -79,14 +51,14 @@ def print_loadbar(current: int, total: int, *,
     """
     
     percent = (current / total)
-    fill = charFilled * int(percent * blocksOnBar)
-    empty = charEmpty * int(blocksOnBar - (percent * blocksOnBar))
+    fill = int(percent * blocksOnBar)
+    empty = blocksOnBar - fill
     
     loadbar = '\r'
     loadbar += phraseBefore
     loadbar += charLeft
-    loadbar += fill
-    loadbar += empty
+    loadbar += charFilled * fill
+    loadbar += charEmpty * empty
     loadbar += charRight
     if doNumCount:
         loadbar += f" {current}/{total} "

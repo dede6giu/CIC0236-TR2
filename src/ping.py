@@ -6,7 +6,7 @@ import mensagens as msg
 
 def send_recv(clientSocket: socket) -> msg.Pong|msg.Timeout|msg.Error:
     pacote = msg.Ping()
-    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, str(pacote))
+    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, pacote)
     if rtrnMsg == "PONG":
         return msg.Pong(RTT, rawdata)
     elif rtrnMsg == "TIMEOUT":

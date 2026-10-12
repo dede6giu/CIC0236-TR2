@@ -1,5 +1,6 @@
 import configurations as cfg
 import clientserver as cs
+import mensagens as msg
 import util
 from enum import Enum
 
@@ -9,53 +10,6 @@ class ReqResult(Enum):
     N_SIZE = 4
     TIMEOUT = 2
     ERROR = 3
-
-def send_handshake(clientSocket: socket) -> ReqResult:
-    """
-        clientSocket:socket     socket para o handshake
-    ->  ReqResult               sucesso/fracasso da operação
-
-    Realiza o handshake e transforma em um resultado legíve
-    para o módulo.
-    """
-
-    handshakeSuccess = cs.handshake(clientSocket)
-    if handshakeSuccess == "OK":
-        return ReqResult.SUCCESS
-    if handshakeSuccess == "TIMEOUT":
-        return ReqResult.TIMEOUT
-    return ReqResult.ERRO
-
-def send_req(clientSocket: socket, seq: int) -> (ReqResult, str|bytes):
-    """
-        clientSocket:socket     conexão (já com handshake)
-        seq:int                 número de sequência
-    ->  (ReqResult, str|bytes)  (resultado, msg|payload)
-
-    Requisita a sequência seq para o servidor e já retorna o payload
-    em caso de sucesso.
-    """
-
-    pacote = f'REQ|seq={seq}'
-    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, pacote)
-
-    if rtrnMsg == 'ERROR':
-        data = util.get_meta_until(rawdata)
-        return (ReqResult.ERROR, data["msg"])
-    if rtrnMsg == 'TIMEOUT':
-        data = util.get_meta_until(rawdata)
-        return (ReqResult.TIMEOUT, data["msg"])
-    if rtrnMsg != 'DATA':
-        return (ReqResult.ERROR, "Mensagem desconhecida do servidor")
-
-    data = util.get_meta_until(rawdata, 2)
-    if seq != int(data["seq"]):
-        return (ReqResult.N_SEG, "Segmento incorreto.")
-    # if len(data["payload"]) != int(data["total"]):
-    #     print(f"{len(data["payload"])} != {int(data["total"])}")
-    #     return (ReqResult.N_SIZE, "Tamanho incorreto.")
-    
-    return (ReqResult.SUCCESS, data["payload"])
 
 def send_ack(clientSocket: socket, seq: int) -> ReqResult:
     """
@@ -70,49 +24,46 @@ def send_ack(clientSocket: socket, seq: int) -> ReqResult:
     rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, pacote)
     return (rtrnMsg, rawdata)
 
-def saw(clientSocket: socket, filePath: str) -> ReqResult:
+def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
     """
         clientSocket:socket     conexão (já com handshake)
+        hsOk:msg.Ok             dados da conexão (handshakeOk)
         filePath:str            onde salvar o arquivo
-    ->  ReqResult               sucesso/fracasso da operação
 
     Executa o protocolo Stop-and-Wait para baixar um arquivo.
     """
 
-    # Execução
     seqCurrent = 0
-    while (seqCurrent < cfg.seqTotalAmount):
+    while (seqCurrent < hsOk.totalSegments):
         # Enviar REQ
-        attempts = 0
-        while attempts < cfg.maxRetries:
-            # print(f"REQ {seqCurrent}: Tentativa {attempts+1}...")
-            resultType, reqData = send_req(clientSocket, seqCurrent)
-            if resultType == ReqResult.SUCCESS:
-                send_ack(clientSocket, seqCurrent)
-                break
-            attempts += 1
-        # print(resultType)
-        
-        # Manejamento de erros
-        if resultType == ReqResult.ERROR:
-            print(f"ERRO: {reqData["msg"]}")
+        hasFailed = False
+        srvResponse = cs.req(clientSocket, seqCurrent)
+        if not isinstance(srvResponse, msg.Data):
+            # Manejamento de erros
+            if not hasFailed: print()
+            if isinstance(srvResponse, msg.Error):
+                print(f"ERRO: {srvResponse.msg}")
+            elif isinstance(srvResponse, msg.Timeout):
+                print(f"TIMEOUT: Servidor não respondeu ao REQ({seqCurrent})")
+            elif not isinstance(srvResponse, msg.Data):
+                print(f"ERRO: Erro desconhecido")
+            hasFailed = True
             continue # para tentar receber novamente
-        elif resultType == ReqResult.TIMEOUT:
-            return ReqResult.TIMEOUT
-        elif resultType == ReqResult.N_SEG:
-            print(f"ERRO: Número de segmento incorreto.")
-            continue # para tentar receber novamente
-        elif resultType != ReqResult.SUCCESS:
-            print(f"ERRO: Erro desconhecido")
-            continue # para tentar receber novamente
-            
-        # Sucesso: Salvar resultado
-        with open(filePath, "ab") as f:
-            f.write(reqData)
-        seqCurrent += 1
-        util.print_loadbar(seqCurrent, cfg.seqTotalAmount)
+        hasFailed = False
 
-    return ReqResult.SUCCESS
+        # Sucesso!
+        # ACK
+        cs.ack(clientSocket, seqCurrent)
+
+        # Salvar resultado
+        with open(filePath, "ab") as f:
+            f.write(srvResponse.payload)
+        seqCurrent += 1
+
+        # Visualização da barra de carregamento
+        util.print_loadbar(seqCurrent, hsOk.totalSegments)
+
+    return
 
 def main(clientSocket: socket) -> None:
     """
@@ -120,52 +71,31 @@ def main(clientSocket: socket) -> None:
     """
 
     # Realizar handshake
-    aux = send_handshake(clientSocket)
-    if aux == ReqResult.ERROR:
+    handshakeResult = cs.handshake(clientSocket)
+
+    if isinstance(handshakeResult, msg.Error):
         print("ERRO: Handshake falhou")
         return
-    if aux == ReqResult.TIMEOUT:
+    if isinstance(handshakeResult, msg.Timeout):
         print("TIMEOUT: Servidor não respondeu ao handshake")
         return
 
     # Caminho para o arquivo...
-    filePath = ''
-    if cfg.filetype == 'small':
-        filePath = cfg.pathsml
-    elif cfg.filetype == 'medium':
-        filePath = cfg.pathmed
-    elif cfg.filetype == 'big':
-        filePath = cfg.pathbig
+    filePath = util.get_file_path(handshakeResult)
     with open(filePath, "wb+"):
         pass # Esvazia o arquivo
 
     # Stop-And-Wait
-    resultOperation = saw(clientSocket, filePath)
-    if resultOperation == ReqResult.TIMEOUT:
-        print(f"TIMEOUT: O servidor não respondeu depois de {cfg.maxRetries} tentativas")
-        return
-    elif resultOperation == ReqResult.ERROR:
-        print(f"ERRO: Algum erro aconteceu")
-        return
-    elif resultOperation != ReqResult.SUCCESS:
-        print(f"ERRO: Resultado desconhecido")
-        return
-
+    saw(clientSocket, handshakeResult, filePath)
+    
     # Verificação do arquivo
     receivedChecksum = util.do_md5(filePath)
     fileStatus = cs.fin(clientSocket, receivedChecksum)
-
-    if fileStatus == "SUCCESS":
+    while not isinstance(fileStatus, msg.Done):
+        fileStatus = cs.fin(clientSocket, receivedChecksum)
+        print(fileStatus)
+    if fileStatus.ok:
         print(f"SUCESSO: Arquivo '{cfg.filetype}' baixado e verificado")
-    elif fileStatus == "FAIL":
-        print(f"FALHA: Checksum de '{cfg.filetype}' não correspondeu")
-    elif fileStatus == "TIMEOUT":
-        print(
-            f"TIMEOUT: Servidor não respondeu a tempo, não foi possível"
-            f" verificar a integridade do arquivo '{cfg.filetype}' baixado.")
     else:
-        print(
-            f"ERRO: Não foi possível verificar a integridade do "
-            f"arquivo '{cfg.filetype}' baixado.")
-
+        print(f"FALHA: Checksum de '{cfg.filetype}' não correspondeu")
     return
