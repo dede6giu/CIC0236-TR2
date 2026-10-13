@@ -7,7 +7,7 @@ serverPort = 8080
 server = (serverName, serverPort)
 
 # Configs
-basetimeout = 5.0
+baseTimeout = 5.0
 timeout = 5.0
 pcksize = 2048 ## recvfrom()
 encoding = 'utf-8'

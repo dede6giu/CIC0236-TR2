@@ -2,27 +2,7 @@ import configurations as cfg
 import clientserver as cs
 import mensagens as msg
 import util
-from enum import Enum
-
-class ReqResult(Enum):
-    SUCCESS = 0
-    N_SEG = 1
-    N_SIZE = 4
-    TIMEOUT = 2
-    ERROR = 3
-
-def send_ack(clientSocket: socket, seq: int) -> ReqResult:
-    """
-        clientSocket:socket     conexão (já com handshake)
-        seq:int                 número de sequência
-    ->  ReqResult               sucesso/fracasso da operação
-
-    Envia um ACK(seq) para o servidor.
-    """
-
-    pacote = f"ACK|seq={seq}"
-    rtrnMsg, rawdata, RTT = cs.send_pick_header(clientSocket, pacote)
-    return (rtrnMsg, rawdata)
+import time
 
 def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
     """
@@ -34,34 +14,68 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
     """
 
     seqCurrent = 0
+    csvTimestampPrevious = time.time()
+    csvFileName = f"metrics_{cfg.grupo}_saw_"
+    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestampPrevious))
+    csvRetransmissions = 0
+    csvTimeoutHappened = False
     while (seqCurrent < hsOk.totalSegments):
         # Enviar REQ
-        hasFailed = False
         srvResponse = cs.req(clientSocket, seqCurrent)
         if not isinstance(srvResponse, msg.Data):
             # Manejamento de erros
-            if not hasFailed: print()
+            if csvRetransmissions == 0: print()
             if isinstance(srvResponse, msg.Error):
                 print(f"ERRO: {srvResponse.msg}")
             elif isinstance(srvResponse, msg.Timeout):
                 print(f"TIMEOUT: Servidor não respondeu ao REQ({seqCurrent})")
+                csvTimeoutHappened = True
             elif not isinstance(srvResponse, msg.Data):
                 print(f"ERRO: Erro desconhecido")
-            hasFailed = True
+            csvRetransmissions += 1
             continue # para tentar receber novamente
-        hasFailed = False
 
         # Sucesso!
-        # ACK
-        cs.ack(clientSocket, seqCurrent)
+
+        # CSV data
+        csvTimestamp = time.time()
+        csvSizeBytes = len(srvResponse.payload)
+        csvRTT = srvResponse.RTT
+        csvRTTEst = srvResponse.RTT
+        csvTimeout = clientSocket.gettimeout()
+        csvThroughput = csvSizeBytes / (1000*(csvTimestamp - csvTimestampPrevious))
+        csvWindowSize = 1
+        csvProtocol = "saw"
+        util.do_csv(
+            csvFileName,
+            seqCurrent,
+            csvTimestamp,
+            csvSizeBytes,
+            csvRTT,
+            csvRTTEst,
+            csvTimeout,
+            csvThroughput,
+            csvRetransmissions,
+            csvTimeoutHappened,
+            csvWindowSize,
+            csvProtocol
+        )
 
         # Salvar resultado
         with open(filePath, "ab") as f:
             f.write(srvResponse.payload)
         seqCurrent += 1
 
+        # ACK
+        cs.ack(clientSocket, seqCurrent)
+
         # Visualização da barra de carregamento
         util.print_loadbar(seqCurrent, hsOk.totalSegments)
+
+        # Reset das variáveis
+        csvTimestampPrevious = csvTimestamp
+        csvRetransmissions = 0
+        csvTimeoutHappened = False
 
     return
 
@@ -69,6 +83,9 @@ def main(clientSocket: socket) -> None:
     """
     Embrulha o método Stop And Wait em uma função. 
     """
+
+    # Definir timeout
+    clientSocket.settimeout(cfg.baseTimeout)
 
     # Realizar handshake
     handshakeResult = cs.handshake(clientSocket)

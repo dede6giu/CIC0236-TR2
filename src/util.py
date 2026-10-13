@@ -1,7 +1,10 @@
 import configurations as cfg
 import hashlib
 from math import floor
-from time import time
+import time
+import csv
+
+lastthroughput = 0
 
 def get_return_type(raw: bytes) -> (str, bytes):
     """
@@ -22,7 +25,7 @@ def get_return_type(raw: bytes) -> (str, bytes):
 def get_file_path(hsOk: msg.Ok):
     filePath = cfg.filePathBase
     if hsOk == None:
-        filePath += str(int(time()))
+        filePath += str(int(time.time()))
         return filePath
     filePath += str(hsOk.seed)
     filePath += f"_({cfg.filetype})"
@@ -45,10 +48,12 @@ def print_loadbar(current: int, total: int, *,
                 phraseBefore: str = 'Baixando: ',
                 charLeft: str = '「', charRight: str = '」',
                 doNumCount: bool = True,
-                blocksOnBar: int = 25) -> None:
+                blocksOnBar: int = 25,
+                throughput: float = 0) -> None:
     """
     Cria uma barra de carregamento.
     """
+    global lastthroughput
     
     percent = (current / total)
     fill = int(percent * blocksOnBar)
@@ -65,6 +70,58 @@ def print_loadbar(current: int, total: int, *,
     else:
         loadbar += " "
     loadbar += f"({int(percent*100)}%)"
-    endchar = "\n" if current == total else ""
+    if throughput > 0:
+        throughput = (7/8)*(lastthroughput) + (1/8)*throughput
+        loadbar += f" {throughput}kB/s"
+    if current == total:
+        endchar = "\n"
+        lastthroughput = 0
+    else:
+        endchar = ""
+        lastthroughput = throughput 
     
     print(loadbar, end=endchar)
+
+def do_csv(
+    fileName: str,
+    segment: int,
+    timestamp: float,
+    sizeBytes: int,
+    rtt: float,
+    rttEst: float,
+    timeoutMS: float,
+    throughput: float,
+    retransmission: int,
+    timeoutHappened: bool,
+    windowSize: int,
+    protocol: str
+    ) -> None:
+    fields = ["segment", "timestamp", "size_bytes", "rtt_ms",
+    "rtt_estimated_ms", "timeout_ms", "throughput_kbps", "retransmissions",
+    "timeout_occurred", "window_size", "protocol"]
+    filePath = cfg.filePathBase + fileName + ".csv"
+    timestamp = time.strftime(f"%Y-%m-%dT%H:%M:%S", time.gmtime(timestamp))
+    row = []
+    row.append(str(segment))
+    row.append(str(timestamp))
+    row.append(str(sizeBytes))
+    row.append(str(rtt*1000))
+    row.append(str(rttEst*1000))
+    row.append(str(timeoutMS*1000))
+    row.append(str(throughput))
+    row.append(str(retransmission))
+    row.append(str(1 if timeoutHappened else 0))
+    row.append(str(windowSize))
+    row.append(str(protocol))
+    try:
+        f = open(filePath, "x")
+        f.close()
+        with open(filePath, "w") as csvFile:
+            csvWriter = csv.writer(csvFile)
+            csvWriter.writerow(fields)
+    except FileExistsError:
+        pass
+    with open(filePath, "a") as csvFile:
+        csvWriter = csv.writer(csvFile)
+        csvWriter.writerow(row)
+    return

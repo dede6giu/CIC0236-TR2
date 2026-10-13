@@ -6,7 +6,7 @@ import mensagens as msg
 
 def make_socket() -> socket:
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    clientSocket.settimeout(cfg.basetimeout)
+    clientSocket.settimeout(cfg.baseTimeout)
     return clientSocket
 
 def close_socket(clientSocket: socket) -> None:
