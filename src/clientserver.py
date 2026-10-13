@@ -13,6 +13,24 @@ def close_socket(clientSocket: socket) -> None:
     clientSocket.close()
     return
 
+def send_recv(clientSocket: socket, pacote: msg.Pacote) -> msg.Pacote:
+    rtrnMsg, data, RTT = send_pick_header(clientSocket, pacote)
+    match rtrnMsg:
+        case "PONG":
+            return msg.Pong(RTT, data)
+        case "OK":
+            return msg.Ok(RTT, data)
+        case "DATA":
+            return msg.Data(RTT, data)
+        case "DONE":
+            return msg.Done(RTT, data)
+        case "TIMEOUT":
+            return msg.Timeout("Servidor não respondeu")
+        case "ERROR":
+            return msg.Error(RTT, data)
+        case _:
+            return msg.Error(-1, b"Resposta desconhecida do servidor")
+
 def send_pick_header(clientSocket: socket, pacote: msg.Pacote) -> (str, bytes, float):
     """
         clientSocket:socket socket
@@ -25,7 +43,7 @@ def send_pick_header(clientSocket: socket, pacote: msg.Pacote) -> (str, bytes, f
     try:
         rawdata, RTT = send_message(clientSocket, pacote)
     except socket.timeout:
-        return ("TIMEOUT", b"msg=Socket timeout", -1)
+        return ("TIMEOUT", b"", -1)
     rtrnMsg, data = util.get_return_type(rawdata)
     return (rtrnMsg, data, RTT) 
 
@@ -48,27 +66,6 @@ def send_message(clientSocket: socket, pacote: msg.Pacote) -> (bytes, float):
     timeEnd = time.time()
     return (rawdata, timeEnd-timeStart)
 
-def make_hello(*,
-        grupo: str = cfg.grupo,
-        segSize: int = cfg.seqSizeDefault,
-        fileType: str = cfg.filetype
-        ) -> msg.Hello:
-    return msg.Hello(
-        grupo,
-        segSize,
-        fileType
-    )
-
-def get_ok(clientSocket: socket, hello: msg.Hello) -> msg.Ok|msg.Timeout|msg.Error:
-    rtrnMsg, rawdata, RTT = send_pick_header(clientSocket, hello)
-    if rtrnMsg == "OK":
-        return msg.Ok(RTT, rawdata)
-    elif rtrnMsg == "TIMEOUT":
-        return msg.Timeout("Servidor não respondeu")
-    elif rtrnMsg == "ERROR":
-        return msg.Error(RTT, rawdata)
-    return msg.Error(-1, b"Erro desconhecido")
-
 def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:
     """
         clientSocket:socket socket
@@ -77,12 +74,13 @@ def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:
     Realiza o handshake entre cliente<->servidor.
     Retorna a mensagem do servidor.
     """
-    # Preparar HELLO
-    pacote = make_hello()
 
-    # Enviar HELLO
-    srvResponse = get_ok(clientSocket, pacote)
-
+    pacote = msg.Hello(
+        cfg.grupo,
+        cfg.seqSizeDefault,
+        cfg.filetype
+    )
+    srvResponse = send_recv(clientSocket, pacote)
     return srvResponse
 
 def req(clientSocket: socket, seq: int) -> msg.Data|msg.Timeout|msg.Error:
@@ -96,16 +94,7 @@ def req(clientSocket: socket, seq: int) -> msg.Data|msg.Timeout|msg.Error:
     """
 
     pacote = msg.Req(seq)
-    rtrnMsg, rawdata, RTT = send_pick_header(clientSocket, pacote)
-
-    if rtrnMsg == 'ERROR':
-        return msg.Error(RTT, rawdata)
-    if rtrnMsg == 'TIMEOUT':
-        return msg.Timeout(f"Servidor não respondeu ao REQ({seq})")
-    if rtrnMsg != 'DATA':
-        return msg.Error(-1, b"Mensagem desconhecida do servidor")
-
-    return msg.Data(RTT, rawdata)
+    return send_recv(clientSocket, pacote)
 
 def ack(clientSocket: socket, seq: int) -> msg.Error:
     """
@@ -119,16 +108,9 @@ def ack(clientSocket: socket, seq: int) -> msg.Error:
     """
 
     pacote = msg.Ack(seq)
-    rtrnMsg, rawdata, RTT = send_pick_header(clientSocket, pacote)
+    return send_recv(clientSocket, pacote)
 
-    if rtrnMsg == 'ERROR':
-        return msg.Error(RTT, rawdata)
-    if rtrnMsg == 'TIMEOUT':
-        return msg.Timeout(f"Servidor não respondeu ao REQ({seq})")
-    return msg.Error(-1, b"Mensagem desconhecida do servidor")
-
-
-def fin(clientSocket: socket, checksum: str) -> str:
+def fin(clientSocket: socket, checksum: str) -> msg.Done|msg.Timeout|msg.Error:
     """
         clientSocket:socket socket
         checksum:str        Checksum para enviar ao servidor
@@ -140,15 +122,18 @@ def fin(clientSocket: socket, checksum: str) -> str:
     """
 
     pacote = msg.Fin(checksum)
-    
-    rtrnMsg, rawdata, RTT = send_pick_header(clientSocket, pacote)
-    
-    if rtrnMsg == 'ERROR':
-        return msg.Error(RTT, rawdata)
-    if rtrnMsg == 'TIMEOUT':
-        return msg.Timeout(f"Servidor não respondeu ao FIN")
-    if rtrnMsg != 'DONE':
-        return msg.Error(-1, b"Mensagem desconhecida do servidor")  
-        
-    return msg.Done(RTT, rawdata)
-    
+    return send_recv(clientSocket, pacote)
+
+def ping(clientSocket: socket) -> msg.Pong|msg.Timeout|msg.Error:
+    """
+        clientSocket:socket socket
+        checksum:str        Checksum para enviar ao servidor
+    ->  str                 Integridade do arquivo
+
+    Envia FIN ao servidor, e já retorna o valor da resposta DONE
+    do servidor. Tenta restransmissões de acordo com cfg.maxRetries,
+    se falhar nisso retornará False
+    """
+
+    pacote = msg.Ping()
+    return send_recv(clientSocket, pacote)
