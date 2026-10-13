@@ -10,7 +10,6 @@ def ping(clientSocket: socket) -> None:
     
     Envia um PING ao servidor
     """
-    print("=-"*cfg.hl)
     print("Enviando PING...")
 
     # Envia pacote PING

@@ -3,6 +3,7 @@ import configurations as cfg
 import clientserver as cs
 from ping import ping
 from saw import main as saw
+from configmenu import main as configs
 
 def main_menu() -> None:
     print("=-"*cfg.hl)
@@ -10,33 +11,35 @@ def main_menu() -> None:
     while True:
         print("=-"*cfg.hl)
         print("Menu Principal\n")
-        print("0. PING")
-        print("1. Testar SAW")
-        print("2. Testar GBN")
-        print("3. Testar SR")
-        print("4. Testar RTT Adaptativo")
-        print("7. Ver perguntas")
-        print("8. Alterar configurações")
-        print("9. Sair do programa")
+        print("1. PING")
+        print("2. Testar SAW")
+        print("3. Testar GBN")
+        print("4. Testar SR")
+        print("5. Testar RTT Adaptativo")
+        print("8. Ver perguntas")
+        print("9. Alterar configurações")
+        print("0. Sair do programa")
         
         print("=-"*cfg.hl)
         opcao = input("Escolha uma opção: ")
         try:
             opcao = int(opcao)
-        except:
+        except ValueError:
             print("Opção inválida")
             continue
 
         sock = cs.make_socket()
         match opcao:
-            case 0:
-                ping(sock)
             case 1:
+                ping(sock)
+            case 2:
                 saw(sock)
-            case 2|3|4|7|8:
-                print("Não implementado!")
             case 9:
+                configs()
+            case 0:
                 break
+            case 2|3|4|7:
+                print("Não implementado!")
             case _:
                 print("Opção inválida")
         cs.close_socket(sock)
