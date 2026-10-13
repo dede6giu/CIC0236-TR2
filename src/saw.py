@@ -3,20 +3,22 @@ import clientserver as cs
 import mensagens as msg
 import util
 import time
+import graphs
 
-def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
+def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     """
         clientSocket:socket     conexão (já com handshake)
         hsOk:msg.Ok             dados da conexão (handshakeOk)
         filePath:str            onde salvar o arquivo
+    ->  str                     nome do resultado em csv
 
     Executa o protocolo Stop-and-Wait para baixar um arquivo.
     """
 
     seqCurrent = 0
-    csvTimestampPrevious = time.time()
+    csvTimestamp = time.time()
     csvFileName = f"metrics_{cfg.grupo}_saw_"
-    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestampPrevious))
+    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestamp - time.timezone))
     csvRetransmissions = 0
     csvTimeoutHappened = False
     while (seqCurrent < hsOk.totalSegments):
@@ -24,7 +26,7 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
         srvResponse = cs.req(clientSocket, seqCurrent)
         if not isinstance(srvResponse, msg.Data):
             # Manejamento de erros
-            if csvRetransmissions == 0: print()
+            if csvRetransmissions == 0 and seqCurrent != 0: print()
             if isinstance(srvResponse, msg.Error):
                 print(f"ERRO: {srvResponse.msg}")
             elif isinstance(srvResponse, msg.Timeout):
@@ -43,7 +45,7 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
         csvRTT = srvResponse.RTT
         csvRTTEst = srvResponse.RTT
         csvTimeout = clientSocket.gettimeout()
-        csvThroughput = csvSizeBytes / (1000*(csvTimestamp - csvTimestampPrevious))
+        csvThroughput = csvSizeBytes / (1000*csvRTT)
         csvWindowSize = 1
         csvProtocol = "saw"
         util.do_csv(
@@ -73,11 +75,10 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> None:
         util.print_loadbar(seqCurrent, hsOk.totalSegments)
 
         # Reset das variáveis
-        csvTimestampPrevious = csvTimestamp
         csvRetransmissions = 0
         csvTimeoutHappened = False
 
-    return
+    return csvFileName
 
 def main(clientSocket: socket) -> None:
     """
@@ -103,16 +104,21 @@ def main(clientSocket: socket) -> None:
         pass # Esvazia o arquivo
 
     # Stop-And-Wait
-    saw(clientSocket, handshakeResult, filePath)
-    
+    csvFileName = saw(clientSocket, handshakeResult, filePath)
+
     # Verificação do arquivo
     receivedChecksum = util.do_md5(filePath)
     fileStatus = cs.fin(clientSocket, receivedChecksum)
     while not isinstance(fileStatus, msg.Done):
         fileStatus = cs.fin(clientSocket, receivedChecksum)
         print(fileStatus)
-    if fileStatus.ok:
-        print(f"SUCESSO: Arquivo '{cfg.filetype}' baixado e verificado")
-    else:
+    if not fileStatus.ok:
         print(f"FALHA: Checksum de '{cfg.filetype}' não correspondeu")
+        return
+
+    print(f"SUCESSO: Arquivo '{cfg.filetype}' baixado e verificado")
+    opcao = input(f"Deseja ver os gráficos de throughput e RTT? [y/N]: ")
+    showGraphs = True if opcao.upper() == "Y" else False
+    graphs.singleColumnLine(csvFileName, cfg.csvTHROUGHPUT, showGraphs=showGraphs)
+    graphs.singleColumnLine(csvFileName, cfg.csvRTT, showGraphs=showGraphs)
     return

@@ -9,6 +9,7 @@ def main() -> None:
         print("2. String do Grupo")
         print("3. Tamanho do arquivo")
         print("4. Diretório dos arquivos")
+        print("5. Tamanho de segmento padrão")
         print("0. Retornar ao Menu Principal")
         
         print("=-"*cfg.hl)
@@ -31,6 +32,8 @@ def main() -> None:
                 tamanho()
             case 4:
                 diretorio()
+            case 5:
+                segsize()
             case _:
                 print("Opção inválida")
         
@@ -96,4 +99,16 @@ def diretorio() -> None:
     if novoDir[-1] != '/': novoDir += '/'
     cfg.filePathBase = novoDir
     print(f"Novo diretório: {cfg.filePathBase}")
+    return
+
+def segsize() -> None:
+    print(f"Tamanho de segmento atual (bytes): {cfg.seqSizeDefault}")
+    novoSegSize = input(f"Escolha um novo tamanho (bytes): ")
+    try:
+        novoSegSize = int(novoSegSize)
+    except ValueError:
+        print("Valor inválido! Insira apenas o número.")
+        return
+    cfg.seqSizeDefault = novoSegSize
+    print(f"Novo tamanho de segmento (bytes): {cfg.seqSizeDefault}")
     return

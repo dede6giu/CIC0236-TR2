@@ -125,3 +125,17 @@ def do_csv(
         csvWriter = csv.writer(csvFile)
         csvWriter.writerow(row)
     return
+
+def list_from_csv_column(fileName, column) -> list:
+    filePath = cfg.filePathBase + fileName + ".csv"
+    with open(filePath, "r") as csvFile:
+        csvReader = csv.reader(csvFile)
+        result = []
+        isHeader = True
+        for row in csvReader:
+            if isHeader:
+                isHeader = False
+                continue
+            result.append(row[column])
+    return result
+            

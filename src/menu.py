@@ -33,7 +33,10 @@ def main_menu() -> None:
             case 1:
                 ping(sock)
             case 2:
-                saw(sock)
+                try:
+                    saw(sock)
+                except KeyboardInterrupt:
+                    print("\nDownload cancelado...")
             case 9:
                 configs()
             case 0:
