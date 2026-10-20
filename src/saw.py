@@ -4,6 +4,29 @@ import mensagens as msg
 import util
 import time
 import graphs
+from threading import Thread
+from queue import Empty, Queue
+
+def csvQueue(queue: Queue) -> None:
+    while True:
+        try:
+            item = queue.get()
+        except Empty:
+            continue
+        else:
+            util.do_csv(*item)
+            queue.task_done()
+
+def fileQueue(queue: Queue, filePath: str) -> None:
+    while True:
+        try:
+            item = queue.get()
+        except Empty:
+            continue
+        else:
+            with open(filePath, "ab") as f:
+                f.write(item)
+            queue.task_done()
 
 def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     """
@@ -15,12 +38,30 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     Executa o protocolo Stop-and-Wait para baixar um arquivo.
     """
 
-    seqCurrent = 0
-    csvTimestamp = time.time()
+    # CSV Setup
+    csvTimestampPrevious = time.time()
     csvFileName = f"metrics_{cfg.grupo}_saw_"
-    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestamp - time.timezone))
+    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestampPrevious - time.timezone))
     csvRetransmissions = 0
     csvTimeoutHappened = False
+    csvPending = Queue()
+    csvThread = Thread(
+        target=csvQueue,
+        args=(csvPending,),
+        daemon=True
+    )
+    csvThread.start()
+
+    # Outros setup
+    filePending = Queue()
+    fileThread = Thread(
+        target=fileQueue,
+        args=(filePending, filePath,),
+        daemon=True
+    )
+    fileThread.start()
+
+    seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
         # Enviar REQ
         srvResponse = cs.req(clientSocket, seqCurrent)
@@ -45,10 +86,10 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         csvRTT = srvResponse.RTT
         csvRTTEst = srvResponse.RTT
         csvTimeout = clientSocket.gettimeout()
-        csvThroughput = csvSizeBytes / (1000*csvRTT)
+        csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
         csvWindowSize = 1
         csvProtocol = "saw"
-        util.do_csv(
+        csvPending.put((
             csvFileName,
             seqCurrent,
             csvTimestamp,
@@ -61,23 +102,25 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
             csvTimeoutHappened,
             csvWindowSize,
             csvProtocol
-        )
+        ))
 
         # Salvar resultado
-        with open(filePath, "ab") as f:
-            f.write(srvResponse.payload)
-        seqCurrent += 1
+        filePending.put(srvResponse.payload)
 
         # ACK
         cs.ack(clientSocket, seqCurrent)
+        seqCurrent += 1
 
         # Visualização da barra de carregamento
-        util.print_loadbar(seqCurrent, hsOk.totalSegments)
+        util.print_loadbar(seqCurrent, hsOk.totalSegments, throughput=csvThroughput)
 
         # Reset das variáveis
         csvRetransmissions = 0
         csvTimeoutHappened = False
+        csvTimestampPrevious = csvTimestamp
 
+    filePending.join()
+    csvPending.join()
     return csvFileName
 
 def main(clientSocket: socket) -> None:

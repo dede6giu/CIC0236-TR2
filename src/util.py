@@ -4,8 +4,6 @@ from math import floor
 import time
 import csv
 
-lastthroughput = 0
-
 def get_return_type(raw: bytes) -> (str, bytes):
     """
         raw:bytes       raw byte data
@@ -49,11 +47,11 @@ def print_loadbar(current: int, total: int, *,
                 charLeft: str = '「', charRight: str = '」',
                 doNumCount: bool = True,
                 blocksOnBar: int = 25,
-                throughput: float = 0) -> None:
+                throughput: float = 0, throughputRate: int = 16,
+                end: str = "\n") -> None:
     """
     Cria uma barra de carregamento.
     """
-    global lastthroughput
     
     percent = (current / total)
     fill = int(percent * blocksOnBar)
@@ -70,32 +68,26 @@ def print_loadbar(current: int, total: int, *,
     else:
         loadbar += " "
     loadbar += f"({int(percent*100)}%)"
-    if throughput > 0:
-        throughput = (7/8)*(lastthroughput) + (1/8)*throughput
-        loadbar += f" {throughput}kB/s"
-    if current == total:
-        endchar = "\n"
-        lastthroughput = 0
-    else:
-        endchar = ""
-        lastthroughput = throughput 
+    if throughput > 0 and current % throughputRate == 0:
+        loadbar += f" {throughput:.2f}kB/s"
+    endchar = end if current == total else ""
     
     print(loadbar, end=endchar)
 
 def do_csv(
-    fileName: str,
-    segment: int,
-    timestamp: float,
-    sizeBytes: int,
-    rtt: float,
-    rttEst: float,
-    timeoutMS: float,
-    throughput: float,
-    retransmission: int,
-    timeoutHappened: bool,
-    windowSize: int,
-    protocol: str
-    ) -> None:
+        fileName: str,
+        segment: int,
+        timestamp: float,
+        sizeBytes: int,
+        rtt: float,
+        rttEst: float,
+        timeoutMS: float,
+        throughput: float,
+        retransmission: int,
+        timeoutHappened: bool,
+        windowSize: int,
+        protocol: str
+        ) -> None:
     fields = ["segment", "timestamp", "size_bytes", "rtt_ms",
     "rtt_estimated_ms", "timeout_ms", "throughput_kbps", "retransmissions",
     "timeout_occurred", "window_size", "protocol"]
