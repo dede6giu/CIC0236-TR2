@@ -40,7 +40,8 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
 
     # CSV Setup
     csvTimestampPrevious = time.time()
-    csvFileName = f"metrics_{cfg.grupo}_saw_"
+    csvProtocol = "saw"
+    csvFileName = f"metrics_{cfg.grupo}_{csvProtocol}_"
     csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestampPrevious - time.timezone))
     csvRetransmissions = 0
     csvTimeoutHappened = False
@@ -88,7 +89,6 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         csvTimeout = clientSocket.gettimeout()
         csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
         csvWindowSize = 1
-        csvProtocol = "saw"
         csvPending.put((
             csvFileName,
             seqCurrent,

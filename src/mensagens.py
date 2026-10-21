@@ -175,7 +175,7 @@ class Done(Pacote):
     def __init__(self, RTT: float, rawdata: bytes):
         Pacote.__init__(self, "DONE", RTT)
         data = self.get_meta_until(rawdata)
-        self.ok = bool(data["ok"])
+        self.ok = True if data["ok"] == "1" else False
     
     def stringify(self):
         return (self.header 

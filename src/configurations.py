@@ -8,12 +8,13 @@ server = (serverName, serverPort)
 pcksize = 2048 ## recvfrom()
 encoding = 'utf-8'
 
-# Configs
+# Configs Genéricas
 baseTimeout = 5.0
 grupo = 'grupo03'
 filetype = 'small' ## small / medium / large
 filePathBase = './results/'
 seqSizeDefault = 1024
+reqWindowSizeDefault = 4
 
 # CSV Column Constants
 csvSEGMENT = (0, int, "segment")

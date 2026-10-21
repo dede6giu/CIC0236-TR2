@@ -36,8 +36,6 @@ def main() -> None:
                 segsize()
             case _:
                 print("Opção inválida")
-        
-        time.sleep(1.2)
     return
 
 def timeout() -> None:

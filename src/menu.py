@@ -3,6 +3,7 @@ import configurations as cfg
 import clientserver as cs
 from ping import ping
 from saw import main as saw
+from gbn import main as gbn
 from configmenu import main as configs
 
 def main_menu() -> None:
@@ -37,15 +38,18 @@ def main_menu() -> None:
                     saw(sock)
                 except KeyboardInterrupt:
                     print("\nDownload cancelado...")
+            case 3:
+                try:
+                    gbn(sock)
+                except KeyboardInterrupt:
+                    print("\nDownload cancelado...")
             case 9:
                 configs()
             case 0:
                 break
-            case 2|3|4|7:
+            case 4|5|8:
                 print("Não implementado!")
             case _:
                 print("Opção inválida")
         cs.close_socket(sock)
-        
-        time.sleep(1.2)
     return
