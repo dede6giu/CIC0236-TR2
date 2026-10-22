@@ -10,6 +10,7 @@ def main() -> None:
         print("3. Tamanho do arquivo")
         print("4. Diretório dos arquivos")
         print("5. Tamanho de segmento padrão")
+        print("6. Tamanho de janela padrão")
         print("0. Retornar ao Menu Principal")
         
         print("=-"*cfg.hl)
@@ -34,6 +35,8 @@ def main() -> None:
                 diretorio()
             case 5:
                 segsize()
+            case 6:
+                winsize()
             case _:
                 print("Opção inválida")
     return
@@ -109,4 +112,16 @@ def segsize() -> None:
         return
     cfg.seqSizeDefault = novoSegSize
     print(f"Novo tamanho de segmento (bytes): {cfg.seqSizeDefault}")
+    return
+
+def winsize() -> None:
+    print(f"Tamanho de segmento atual (segs): {cfg.reqWindowSizeDefault}")
+    novoWinSize = input(f"Escolha um novo tamanho (segs): ")
+    try:
+        novoWinSize = int(novoWinSize)
+    except ValueError:
+        print("Valor inválido! Insira apenas o número.")
+        return
+    cfg.reqWindowSizeDefault = novoWinSize
+    print(f"Novo tamanho de segmento (segs): {cfg.reqWindowSizeDefault}")
     return

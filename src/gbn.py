@@ -34,12 +34,9 @@ def fileQueue(queue: Queue, filePath: str) -> None:
 def gbn(clientSocket, hsOk, filePath):
 
     # CSV Setup
-    csvTimestampPrevious = time.time()
     csvProtocol = "gbn"
     csvFileName = f"metrics_{cfg.grupo}_{csvProtocol}_"
-    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(csvTimestampPrevious - time.timezone))
-    csvRetransmissions = 0
-    csvTimeoutHappened = False
+    csvFileName += time.strftime(f"%Y%m%d_%H%M%S", time.gmtime(time.time() - time.timezone))
     csvPending = Queue()
     csvThread = Thread(
         target=csvQueue,
@@ -59,47 +56,49 @@ def gbn(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     amountRetransmissions = dict()
     hadTimeout = dict()
+    firstReqTime = dict()
 
-    csvTimestampPrevious = time.time()
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
+        # Vars para a barra
+        loadbarTime = time.time()
+        totalSegSize = 0
+
         # Enviar windowSize REQs
         currWindow = min(windowSize, hsOk.totalSegments-seqCurrent)
         reqThreadQueue = Queue()
         for i in range(currWindow):
+            treatSeq = seqCurrent+i
             aux = util.ThreadRet(
                 target=lambda sock, seq : cs.req(sock, seq),
-                args=(clientSocket, seqCurrent+i,)
+                args=(clientSocket, treatSeq,)
             )
             aux.start()
+            if firstReqTime.get(treatSeq) == None:
+                firstReqTime[treatSeq] = time.time()
+            if hadTimeout.get(treatSeq) == None:
+                hadTimeout[treatSeq] = False
+            if amountRetransmissions.get(treatSeq) == None:
+                amountRetransmissions[treatSeq] = 0
             reqThreadQueue.put(aux)
         
         
         # Receber DATA em ordem
-        totalSegSize = 0
-        anyTimedout = False
         while not reqThreadQueue.empty():
             srvResponse = (reqThreadQueue.get()).join()
+            treatSeq = seqCurrent
+
             # Timeout / Erro
             if isinstance(srvResponse, msg.Timeout):
-                anyTimedout = True
                 hadTimeout[treatSeq] = True
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
                 continue
             if isinstance(srvResponse, msg.Error):
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
                 continue
-
-            treatSeq = str(srvResponse.seq)
-            if amountRetransmissions.get(treatSeq) == None:
-                amountRetransmissions[treatSeq] = 0
             
-            # Se outra seq timeout, retransmita
-            if anyTimedout:
-                amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
-                continue
-
-            # Número de seq incorreto, pula
+            treatSeq = srvResponse.seq
+            # Número de seq incorreto, joga fora
             if srvResponse.seq != seqCurrent:
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
                 continue
@@ -112,11 +111,13 @@ def gbn(clientSocket, hsOk, filePath):
             csvRTT = srvResponse.RTT
             csvRTTEst = srvResponse.RTT
             csvTimeout = clientSocket.gettimeout()
-            csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
+            csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-firstReqTime[treatSeq]))
+            csvRetransmissions = amountRetransmissions[treatSeq]
+            csvTimeoutHappened = hadTimeout[treatSeq]
             csvWindowSize = currWindow
             csvPending.put((
                 csvFileName,
-                seqCurrent,
+                treatSeq,
                 csvTimestamp,
                 csvSizeBytes,
                 csvRTT,
@@ -128,23 +129,21 @@ def gbn(clientSocket, hsOk, filePath):
                 csvWindowSize,
                 csvProtocol
             ))
+            totalSegSize += csvSizeBytes
             
             # Salvar resultado
             filePending.put(srvResponse.payload)
             
             # Atualizar valor de seqCurrent
-            cs.ack(clientSocket, seqCurrent)
+            # cs.ack(clientSocket, seqCurrent)
             seqCurrent += 1
 
         # Visualização da barra de carregamento
         util.print_loadbar(
             seqCurrent, 
-            hsOk.totalSegments, 
-            throughput=(csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
+            hsOk.totalSegments,
+            throughput=totalSegSize/(1000*(time.time()-loadbarTime))
         )
-
-        # reset variáveis
-        csvTimestampPrevious = csvTimestamp
     return csvFileName
 
 

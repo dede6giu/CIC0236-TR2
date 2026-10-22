@@ -5,6 +5,8 @@ import time
 import csv
 from threading import Thread
 
+loadbarLastTime = 0
+
 def get_return_type(raw: bytes) -> (str, bytes):
     """
         raw:bytes       raw byte data
@@ -48,11 +50,12 @@ def print_loadbar(current: int, total: int, *,
                 charLeft: str = '「', charRight: str = '」',
                 doNumCount: bool = True,
                 blocksOnBar: int = 25,
-                throughput: float = 0, throughputRate: int = 16,
+                throughput: float = 0, throughputRate: float = 0.3,
                 end: str = "\n") -> None:
     """
     Cria uma barra de carregamento.
     """
+    global loadbarLastTime
     
     percent = (current / total)
     fill = int(percent * blocksOnBar)
@@ -69,8 +72,9 @@ def print_loadbar(current: int, total: int, *,
     else:
         loadbar += " "
     loadbar += f"({int(percent*100)}%)"
-    if throughput > 0 and current % throughputRate == 0:
-        loadbar += f" {throughput:.2f}kB/s"
+    if throughput > 0 and time.time()-loadbarLastTime > throughputRate:
+        loadbar += f" {throughput:.2f}kB/s  "
+        loadbarLastTime = time.time()
     endchar = end if current == total else ""
     
     print(loadbar, end=endchar)
