@@ -3,6 +3,7 @@ import time
 import configurations as cfg
 import util
 import mensagens as msg
+import random as rand
 
 def make_socket() -> socket:
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -21,13 +22,19 @@ def send_recv(clientSocket: socket, pacote: msg.Pacote) -> msg.Pacote:
         case "OK":
             return msg.Ok(RTT, data)
         case "DATA":
+            if cfg.loseRate == 0:
+                return msg.Data(RTT, data)
+            if rand.random() < cfg.loseRate:
+                return msg.Error(-1, b"Pacote dropado pelo cliente", seg=pacote.seq)
             return msg.Data(RTT, data)
         case "DONE":
             return msg.Done(RTT, data)
         case "TIMEOUT":
-            return msg.Timeout("Servidor não respondeu")
+            seg = pacote.seq if isinstance(pacote, msg.Req) else -1
+            return msg.Timeout("Servidor não respondeu", seg=seg)
         case "ERROR":
-            return msg.Error(RTT, data)
+            seg = pacote.seq if isinstance(pacote, msg.Req) else -1
+            return msg.Error(RTT, data, seg=seg)
         case _:
             return msg.Error(-1, b"Resposta desconhecida do servidor")
 

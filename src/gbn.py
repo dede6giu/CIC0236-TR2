@@ -86,9 +86,11 @@ def gbn(clientSocket, hsOk, filePath):
         # Receber DATA em ordem
         while not reqThreadQueue.empty():
             srvResponse = (reqThreadQueue.get()).join()
-            treatSeq = seqCurrent
+            treatSeq = srvResponse.seq
 
             # Timeout / Erro
+            if treatSeq < 0:
+                continue
             if isinstance(srvResponse, msg.Timeout):
                 hadTimeout[treatSeq] = True
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
@@ -97,7 +99,6 @@ def gbn(clientSocket, hsOk, filePath):
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
                 continue
             
-            treatSeq = srvResponse.seq
             # Número de seq incorreto, joga fora
             if srvResponse.seq != seqCurrent:
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
@@ -144,6 +145,8 @@ def gbn(clientSocket, hsOk, filePath):
             hsOk.totalSegments,
             throughput=totalSegSize/(1000*(time.time()-loadbarTime))
         )
+    filePending.join()
+    csvPending.join()
     return csvFileName
 
 

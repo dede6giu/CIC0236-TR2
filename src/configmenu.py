@@ -11,6 +11,7 @@ def main() -> None:
         print("4. Diretório dos arquivos")
         print("5. Tamanho de segmento padrão")
         print("6. Tamanho de janela padrão")
+        print("7. Taxa de perda de pacote")
         print("0. Retornar ao Menu Principal")
         
         print("=-"*cfg.hl)
@@ -37,6 +38,8 @@ def main() -> None:
                 segsize()
             case 6:
                 winsize()
+            case 7:
+                pcktloss()
             case _:
                 print("Opção inválida")
     return
@@ -115,7 +118,7 @@ def segsize() -> None:
     return
 
 def winsize() -> None:
-    print(f"Tamanho de segmento atual (segs): {cfg.reqWindowSizeDefault}")
+    print(f"Tamanho de janela atual (segs): {cfg.reqWindowSizeDefault}")
     novoWinSize = input(f"Escolha um novo tamanho (segs): ")
     try:
         novoWinSize = int(novoWinSize)
@@ -123,5 +126,19 @@ def winsize() -> None:
         print("Valor inválido! Insira apenas o número.")
         return
     cfg.reqWindowSizeDefault = novoWinSize
-    print(f"Novo tamanho de segmento (segs): {cfg.reqWindowSizeDefault}")
+    print(f"Novo tamanho de janela (segs): {cfg.reqWindowSizeDefault}")
+    return
+
+def pcktloss() -> None:
+    print(f"Taxa de perca atual (%): {cfg.loseRate*100:.2f}%")
+    novoLoseRate = input(f"Escolha uma nova taxa (%): ")
+    try:
+        novoLoseRate = float(novoLoseRate)
+        if novoLoseRate < 0 or novoLoseRate > 100:
+            print("Valor inválido! Insira um valor entre 0 e 100")
+    except ValueError:
+        print("Valor inválido! Insira apenas o número.")
+        return
+    cfg.loseRate = novoLoseRate / 100
+    print(f"Novo tamanho de segmento (segs): {cfg.loseRate*100:.2f}%")
     return

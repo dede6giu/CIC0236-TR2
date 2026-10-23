@@ -15,6 +15,7 @@ filetype = 'small' ## small / medium / large
 filePathBase = './results/'
 seqSizeDefault = 1024
 reqWindowSizeDefault = 4
+loseRate = 0
 
 # CSV Column Constants
 csvSEGMENT = (0, int, "segment")

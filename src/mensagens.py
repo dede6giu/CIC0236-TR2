@@ -55,20 +55,22 @@ class Pacote:
 
 
 class Error(Pacote):
-    def __init__(self, RTT: float, rawdata: bytes):
+    def __init__(self, RTT: float, rawdata: bytes, *, seg: int = -1):
         Pacote.__init__(self, "ERROR", RTT)
         if self.clientSide:
             self.msg = rawdata.decode()
         else:
             self.msg = self.get_meta_until(rawdata)["msg"]
+        self.seq = seg
     
     def stringify(self):
         return self.header + f"|msg={self.msg}"
 
 class Timeout(Pacote):
-    def __init__(self, msg: str):
+    def __init__(self, msg: str, *, seg: int = -1):
         Pacote.__init__(self, "TIMEOUT", -1)
         self.msg = msg
+        self.seq = seg
 
 
 class Ping(Pacote):

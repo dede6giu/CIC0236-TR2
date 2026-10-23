@@ -4,6 +4,7 @@ import clientserver as cs
 from ping import ping
 from saw import main as saw
 from gbn import main as gbn
+from sr import main as sr
 from configmenu import main as configs
 
 def main_menu() -> None:
@@ -43,11 +44,16 @@ def main_menu() -> None:
                     gbn(sock)
                 except KeyboardInterrupt:
                     print("\nDownload cancelado...")
+            case 4:
+                try:
+                    sr(sock)
+                except KeyboardInterrupt:
+                    print("\nDownload cancelado...")
             case 9:
                 configs()
             case 0:
                 break
-            case 4|5|8:
+            case 5|8:
                 print("Não implementado!")
             case _:
                 print("Opção inválida")
