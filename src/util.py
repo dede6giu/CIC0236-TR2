@@ -95,7 +95,7 @@ def do_csv(
         ) -> None:
     fields = ["segment", "timestamp", "size_bytes", "rtt_ms",
     "rtt_estimated_ms", "timeout_ms", "throughput_kbps", "retransmissions",
-    "timeout_occurred", "window_size", "protocol"]
+    "timeout_occurred", "window_size", "protocol", "simulated_loss"]
     filePath = cfg.filePathBase + fileName + ".csv"
     timestamp = time.strftime(f"%Y-%m-%dT%H:%M:%S", time.gmtime(timestamp))
     row = []
@@ -110,6 +110,7 @@ def do_csv(
     row.append(str(1 if timeoutHappened else 0))
     row.append(str(windowSize))
     row.append(str(protocol))
+    row.append(str(cfg.loseRate))
     try:
         f = open(filePath, "x")
         f.close()

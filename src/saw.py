@@ -87,7 +87,8 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         csvRTT = srvResponse.RTT
         csvRTTEst = srvResponse.RTT
         csvTimeout = clientSocket.gettimeout()
-        csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
+        # csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
+        csvThroughput = (csvSizeBytes) / (1000*csvRTT)
         csvWindowSize = 1
         csvPending.put((
             csvFileName,

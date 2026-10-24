@@ -56,7 +56,6 @@ def gbn(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     amountRetransmissions = dict()
     hadTimeout = dict()
-    firstReqTime = dict()
 
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
@@ -74,8 +73,6 @@ def gbn(clientSocket, hsOk, filePath):
                 args=(clientSocket, treatSeq,)
             )
             aux.start()
-            if firstReqTime.get(treatSeq) == None:
-                firstReqTime[treatSeq] = time.time()
             if hadTimeout.get(treatSeq) == None:
                 hadTimeout[treatSeq] = False
             if amountRetransmissions.get(treatSeq) == None:
@@ -112,7 +109,7 @@ def gbn(clientSocket, hsOk, filePath):
             csvRTT = srvResponse.RTT
             csvRTTEst = srvResponse.RTT
             csvTimeout = clientSocket.gettimeout()
-            csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-firstReqTime[treatSeq]))
+            csvThroughput = (csvSizeBytes) / (1000*csvRTT)
             csvRetransmissions = amountRetransmissions[treatSeq]
             csvTimeoutHappened = hadTimeout[treatSeq]
             csvWindowSize = currWindow

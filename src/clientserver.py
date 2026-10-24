@@ -25,7 +25,7 @@ def send_recv(clientSocket: socket, pacote: msg.Pacote) -> msg.Pacote:
             if cfg.loseRate == 0:
                 return msg.Data(RTT, data)
             if rand.random() < cfg.loseRate:
-                return msg.Error(-1, b"Pacote dropado pelo cliente", seg=pacote.seq)
+                return msg.Error(-1, b"Pacote descartado pelo cliente", seg=pacote.seq)
             return msg.Data(RTT, data)
         case "DONE":
             return msg.Done(RTT, data)
@@ -132,15 +132,6 @@ def fin(clientSocket: socket, checksum: str) -> msg.Done|msg.Timeout|msg.Error:
     return send_recv(clientSocket, pacote)
 
 def ping(clientSocket: socket) -> msg.Pong|msg.Timeout|msg.Error:
-    """
-        clientSocket:socket socket
-        checksum:str        Checksum para enviar ao servidor
-    ->  str                 Integridade do arquivo
-
-    Envia FIN ao servidor, e já retorna o valor da resposta DONE
-    do servidor. Tenta restransmissões de acordo com cfg.maxRetries,
-    se falhar nisso retornará False
-    """
 
     pacote = msg.Ping()
     return send_recv(clientSocket, pacote)

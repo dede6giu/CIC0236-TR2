@@ -65,7 +65,6 @@ def sr(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     amountRetransmissions = dict()
     hadTimeout = dict()
-    reqTimeSpent = dict()
     payloadReceived = set()
 
     seqCurrent = 0
@@ -86,8 +85,6 @@ def sr(clientSocket, hsOk, filePath):
                 args=(clientSocket, treatSeq,)
             )
             aux.start()
-            if reqTimeSpent.get(treatSeq) == None:
-                reqTimeSpent[treatSeq] = -time.time()
             if hadTimeout.get(treatSeq) == None:
                 hadTimeout[treatSeq] = False
             if amountRetransmissions.get(treatSeq) == None:
@@ -115,12 +112,11 @@ def sr(clientSocket, hsOk, filePath):
             
             # CSV data
             csvTimestamp = time.time()
-            reqTimeSpent[treatSeq] = reqTimeSpent[treatSeq] + csvTimestamp
             csvSizeBytes = len(srvResponse.payload)
             csvRTT = srvResponse.RTT
             csvRTTEst = srvResponse.RTT
             csvTimeout = clientSocket.gettimeout()
-            csvThroughput = (csvSizeBytes) / (1000*(reqTimeSpent[treatSeq]))
+            csvThroughput = (csvSizeBytes) / (1000*csvRTT)
             csvRetransmissions = amountRetransmissions[treatSeq]
             csvTimeoutHappened = hadTimeout[treatSeq]
             csvWindowSize = currWindow
