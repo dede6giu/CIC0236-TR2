@@ -8,24 +8,36 @@ from threading import Thread
 from queue import Empty, Queue
 
 def csvQueue(queue: Queue) -> None:
+    curr = 0
     while True:
         try:
             item = queue.get()
         except Empty:
             continue
         else:
+            if item[1] != curr:
+                queue.task_done()
+                queue.put(item)
+                continue
+            curr += 1
             util.do_csv(*item)
             queue.task_done()
 
 def fileQueue(queue: Queue, filePath: str) -> None:
+    curr = 0
     while True:
         try:
             item = queue.get()
         except Empty:
             continue
         else:
+            if item.seq != curr:
+                queue.task_done()
+                queue.put(item)
+                continue
+            curr += 1
             with open(filePath, "ab") as f:
-                f.write(item)
+                f.write(item.payload)
             queue.task_done()
 
 # def reqThread(clientSocket, seq):

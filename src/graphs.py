@@ -3,12 +3,16 @@ import numpy as np
 import util
 import configurations as cfg
 
-def singleColumnLine(csvFileName: str, column: tuple, *, showGraphs: bool = True):
+def singleColumnLine(csvFileName: str, column: tuple, *, 
+                    showGraphs: bool = True,
+                    sumAccumY: bool = False):
     # Pegar valores
     x = util.list_from_csv_column(csvFileName, 0)
     y = util.list_from_csv_column(csvFileName, column[0])
     nx = (np.asarray(x)).astype(int)
     ny = (np.asarray(y)).astype(column[1])
+
+    if sumAccumY: ny = np.add.accumulate(ny)
 
     # Plot
     plt.style.use('_mpl-gallery')
