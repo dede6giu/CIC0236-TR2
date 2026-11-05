@@ -15,9 +15,12 @@ def csvQueue(queue: Queue) -> None:
         except Empty:
             continue
         else:
-            if item[1] != curr:
+            if item[1] > curr:
                 queue.task_done()
                 queue.put(item)
+                continue
+            if item[1] < curr:
+                queue.task_done()
                 continue
             curr += 1
             util.do_csv(*item)
@@ -31,20 +34,35 @@ def fileQueue(queue: Queue, filePath: str) -> None:
         except Empty:
             continue
         else:
-            if item.seq != curr:
+            if item.seq > curr:
                 queue.task_done()
                 queue.put(item)
+                continue
+            if item.seq < curr:
+                queue.task_done()
                 continue
             curr += 1
             with open(filePath, "ab") as f:
                 f.write(item.payload)
             queue.task_done()
 
-# def reqThread(clientSocket, seq):
-#     return cs.req(clientSocket, seq)
+def rttQueue(queue: Queue) -> None:
+    while True:
+        try:
+            item = queue.get()
+        except Empty:
+            continue
+        else:
+            cfg.rttEst = (1-cfg.rttAlpha) * cfg.rttEst 
+            cfg.rttEst += cfg.rttAlpha * item
+            
+            cfg.rttDev = (1-cfg.rttBeta) * cfg.rttDev
+            cfg.rttDev += cfg.rttBeta * abs(item - cfg.rttEst)
+
+            cfg.rttTimeout = cfg.rttEst + 4*cfg.rttDev
+            queue.task_done()
 
 def gbn(clientSocket, hsOk, filePath):
-
     # CSV Setup
     csvProtocol = "gbn"
     csvFileName = f"metrics_{cfg.grupo}_{csvProtocol}_"
@@ -68,9 +86,26 @@ def gbn(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     amountRetransmissions = dict()
     hadTimeout = dict()
+    firstSentAt = dict()
+    simulatedLoss = dict()
+
+    cfg.rttEst = hsOk.RTT
+    cfg.rttDev = 0
+    cfg.rttTimeout = cfg.baseTimeout
+    rttPending = Queue()
+    rttThread = Thread(
+        target=rttQueue,
+        args=(rttPending,),
+        daemon=True
+    )
+    rttThread.start()
 
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
+        # Ajustar timeout
+        if cfg.rttAdapativo:
+            clientSocket.settimeout(cfg.rttTimeout)
+
         # Vars para a barra
         loadbarTime = time.time()
         totalSegSize = 0
@@ -82,20 +117,28 @@ def gbn(clientSocket, hsOk, filePath):
             treatSeq = seqCurrent+i
             aux = util.ThreadRet(
                 target=lambda sock, seq : cs.req(sock, seq),
-                args=(clientSocket, treatSeq,)
+                args=(clientSocket, treatSeq,),
+                daemon=True
             )
             aux.start()
             if hadTimeout.get(treatSeq) == None:
                 hadTimeout[treatSeq] = False
+            if simulatedLoss.get(treatSeq) == None:
+                simulatedLoss[treatSeq] = 0
             if amountRetransmissions.get(treatSeq) == None:
                 amountRetransmissions[treatSeq] = 0
+            if firstSentAt.get(treatSeq) == None:
+                firstSentAt[treatSeq] = time.time()
             reqThreadQueue.put(aux)
-        
-        
+
         # Receber DATA em ordem
-        while not reqThreadQueue.empty():
-            srvResponse = (reqThreadQueue.get()).join()
+        i = 0
+        while i < currWindow:
+            srvResponse = (reqThreadQueue.get(block=False)).join()
+            i += 1
             treatSeq = srvResponse.seq
+            # seqRTT = srvResponse.RTT
+            seqRTT = time.time() - firstSentAt[treatSeq]
 
             # Timeout / Erro
             if treatSeq < 0:
@@ -103,23 +146,31 @@ def gbn(clientSocket, hsOk, filePath):
             if isinstance(srvResponse, msg.Timeout):
                 hadTimeout[treatSeq] = True
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
+                rttPending.put(clientSocket.gettimeout())
                 continue
             if isinstance(srvResponse, msg.Error):
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
+                if not srvResponse.clientSide:
+                    rttPending.put(seqRTT)
+                if srvResponse.msg == "Pacote descartado pelo cliente":
+                    simulatedLoss[treatSeq] += 1
                 continue
-            
+
             # Número de seq incorreto, joga fora
-            if srvResponse.seq != seqCurrent:
+            if treatSeq != seqCurrent:
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
+                rttPending.put(seqRTT)
                 continue
 
             # Sucesso!
+            rttPending.put(seqRTT)
+            cs.ack(clientSocket, treatSeq)
             
             # CSV data
             csvTimestamp = time.time()
-            csvSizeBytes = len(srvResponse.payload)
-            csvRTT = srvResponse.RTT
-            csvRTTEst = srvResponse.RTT
+            csvSizeBytes = cfg.seqSizeDefault
+            csvRTT = seqRTT
+            csvRTTEst = cfg.rttEst
             csvTimeout = clientSocket.gettimeout()
             csvThroughput = (csvSizeBytes) / (1000*csvRTT)
             csvRetransmissions = amountRetransmissions[treatSeq]
@@ -137,15 +188,15 @@ def gbn(clientSocket, hsOk, filePath):
                 csvRetransmissions,
                 csvTimeoutHappened,
                 csvWindowSize,
-                csvProtocol
+                csvProtocol,
+                simulatedLoss[treatSeq]
             ))
             totalSegSize += csvSizeBytes
             
             # Salvar resultado
-            filePending.put(srvResponse.payload)
+            filePending.put(srvResponse)
             
             # Atualizar valor de seqCurrent
-            # cs.ack(clientSocket, seqCurrent)
             seqCurrent += 1
 
         # Visualização da barra de carregamento
@@ -156,6 +207,7 @@ def gbn(clientSocket, hsOk, filePath):
         )
     filePending.join()
     csvPending.join()
+    rttPending.join()
     return csvFileName
 
 
@@ -190,7 +242,6 @@ def main(clientSocket: socket) -> None:
     fileStatus = cs.fin(clientSocket, receivedChecksum)
     while not isinstance(fileStatus, msg.Done):
         fileStatus = cs.fin(clientSocket, receivedChecksum)
-        print(fileStatus)
     if not fileStatus.ok:
         print(f"FALHA: Checksum de '{cfg.filetype}' não correspondeu")
         return

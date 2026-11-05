@@ -13,20 +13,29 @@ baseTimeout = 5.0
 grupo = 'grupo03'
 filetype = 'small' ## small / medium / large
 filePathBase = './results/'
-seqSizeDefault = 1024
+seqSizeDefault = 512
 reqWindowSizeDefault = 4
 loseRate = 0
+
+# RTT Adaptativo
+rttAdapativo = False
+rttAlpha = 0.125
+rttBeta = 0.25
+rttEst = 0
+rttDev = 0
+rttTimeout = 0
 
 # CSV Column Constants
 csvSEGMENT = (0, int, "segment")
 csvTIMESTAMP = (1, str, "timestamp")
-csvSIZEBYTES = (2, int, "sizebytes")
-csvRTT = (3, float, "rtt")
-csvEST = (4, float, "rttest")
-csvTIMEOUTMS = (5, float, "timeoutms")
-csvTHROUGHPUT = (6, float, "throughput")
-csvRETRANSMISSIONS = (7, int, "retransmissions")
-csvTIMEOUTHAPPENED = (8, int, "timeoutoccurred")
-csvWINDOWSIZE = (9, int, "windowsize")
-csvPROTOCOL = (10, str, "protocol")
-csvLOSS = (11, float, "simulated_loss")
+csvUNIX = (2, float, "time_unix")
+csvSIZEBYTES = (3, int, "sizebytes")
+csvRTT = (4, float, "rtt")
+csvEST = (5, float, "rttest")
+csvTIMEOUTMS = (6, float, "timeoutms")
+csvTHROUGHPUT = (7, float, "throughput")
+csvRETRANSMISSIONS = (8, int, "retransmissions")
+csvTIMEOUTHAPPENED = (9, int, "timeoutoccurred")
+csvWINDOWSIZE = (10, int, "windowsize")
+csvPROTOCOL = (11, str, "protocol")
+csvLOSS = (12, float, "simulated_loss")

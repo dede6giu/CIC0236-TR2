@@ -15,9 +15,12 @@ def csvQueue(queue: Queue) -> None:
         except Empty:
             continue
         else:
-            if item[1] != curr:
+            if item[1] > curr:
                 queue.task_done()
                 queue.put(item)
+                continue
+            if item[1] < curr:
+                queue.task_done()
                 continue
             curr += 1
             util.do_csv(*item)
@@ -31,17 +34,35 @@ def fileQueue(queue: Queue, filePath: str) -> None:
         except Empty:
             continue
         else:
-            if item.seq != curr:
+            if item.seq > curr:
                 queue.task_done()
                 queue.put(item)
+                continue
+            if item.seq < curr:
+                queue.task_done()
                 continue
             curr += 1
             with open(filePath, "ab") as f:
                 f.write(item.payload)
             queue.task_done()
 
-def sr(clientSocket, hsOk, filePath):
+def rttQueue(queue: Queue) -> None:
+    while True:
+        try:
+            item = queue.get()
+        except Empty:
+            continue
+        else:
+            cfg.rttEst = (1-cfg.rttAlpha) * cfg.rttEst 
+            cfg.rttEst += cfg.rttAlpha * item
+            
+            cfg.rttDev = (1-cfg.rttBeta) * cfg.rttDev
+            cfg.rttDev += cfg.rttBeta * abs(item - cfg.rttEst)
 
+            cfg.rttTimeout = cfg.rttEst + 4*cfg.rttDev
+            queue.task_done()
+
+def sr(clientSocket, hsOk, filePath):
     # CSV Setup
     csvProtocol = "sr"
     csvFileName = f"metrics_{cfg.grupo}_{csvProtocol}_"
@@ -66,9 +87,25 @@ def sr(clientSocket, hsOk, filePath):
     amountRetransmissions = dict()
     hadTimeout = dict()
     payloadReceived = set()
+    simulatedLoss = dict()
+
+    cfg.rttEst = hsOk.RTT
+    cfg.rttDev = 0
+    cfg.rttTimeout = cfg.baseTimeout
+    rttPending = Queue()
+    rttThread = Thread(
+        target=rttQueue,
+        args=(rttPending,),
+        daemon=True
+    )
+    rttThread.start()
 
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
+        # Ajustar timeout
+        if cfg.rttAdapativo:
+            clientSocket.settimeout(cfg.rttTimeout)
+
         # Vars para a barra
         loadbarTime = time.time()
         totalSegSize = 0
@@ -87,34 +124,49 @@ def sr(clientSocket, hsOk, filePath):
             aux.start()
             if hadTimeout.get(treatSeq) == None:
                 hadTimeout[treatSeq] = False
+            if simulatedLoss.get(treatSeq) == None:
+                simulatedLoss[treatSeq] = 0
             if amountRetransmissions.get(treatSeq) == None:
                 amountRetransmissions[treatSeq] = 0
             reqThreadQueue.put(aux)
         
         # Receber DATA arbitrariamente
         while not reqThreadQueue.empty():
-            srvResponse = (reqThreadQueue.get()).join()
+            try:
+                srvResponse = (reqThreadQueue.get(block=True, timeout=cfg.rttTimeout)).join()
+            except queue.Empty:
+                break
             treatSeq = srvResponse.seq
 
             # Timeout / Erro
             if treatSeq < 0:
+                reqThreadQueue.task_done()
                 continue
             if isinstance(srvResponse, msg.Timeout):
                 hadTimeout[treatSeq] = True
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
+                rttPending.put(clientSocket.gettimeout())
+                reqThreadQueue.task_done()
                 continue
             if isinstance(srvResponse, msg.Error):
                 amountRetransmissions[treatSeq] = amountRetransmissions[treatSeq]+1
+                if not srvResponse.clientSide:
+                    rttPending.put(srvResponse.RTT)
+                if srvResponse.msg == "Pacote descartado pelo cliente":
+                    simulatedLoss[treatSeq] += 1
+                reqThreadQueue.task_done()
                 continue
             
             # Sucesso!
             payloadReceived.add(treatSeq)
+            rttPending.put(srvResponse.RTT)
+            cs.ack(clientSocket, treatSeq)
             
             # CSV data
             csvTimestamp = time.time()
-            csvSizeBytes = len(srvResponse.payload)
+            csvSizeBytes = cfg.seqSizeDefault
             csvRTT = srvResponse.RTT
-            csvRTTEst = srvResponse.RTT
+            csvRTTEst = cfg.rttEst
             csvTimeout = clientSocket.gettimeout()
             csvThroughput = (csvSizeBytes) / (1000*csvRTT)
             csvRetransmissions = amountRetransmissions[treatSeq]
@@ -132,12 +184,14 @@ def sr(clientSocket, hsOk, filePath):
                 csvRetransmissions,
                 csvTimeoutHappened,
                 csvWindowSize,
-                csvProtocol
+                csvProtocol,
+                simulatedLoss[treatSeq]
             ))
             totalSegSize += csvSizeBytes
             
             # Salvar resultado
             filePending.put(srvResponse)
+            reqThreadQueue.task_done()
         
         while seqCurrent in payloadReceived:
             seqCurrent += 1
@@ -148,6 +202,8 @@ def sr(clientSocket, hsOk, filePath):
             hsOk.totalSegments,
             throughput=totalSegSize/(1000*(time.time()-loadbarTime))
         )
+    
+    rttPending.join()
     filePending.join()
     csvPending.join()
     return csvFileName
@@ -184,7 +240,6 @@ def main(clientSocket: socket) -> None:
     fileStatus = cs.fin(clientSocket, receivedChecksum)
     while not isinstance(fileStatus, msg.Done):
         fileStatus = cs.fin(clientSocket, receivedChecksum)
-        print(fileStatus)
     if not fileStatus.ok:
         print(f"FALHA: Checksum de '{cfg.filetype}' não correspondeu")
         return

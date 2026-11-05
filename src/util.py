@@ -91,15 +91,17 @@ def do_csv(
         retransmission: int,
         timeoutHappened: bool,
         windowSize: int,
-        protocol: str
+        protocol: str,
+        simulatedLoss: bool
         ) -> None:
-    fields = ["segment", "timestamp", "size_bytes", "rtt_ms",
+    fields = ["segment", "timestamp", "time_unix", "size_bytes", "rtt_ms",
     "rtt_estimated_ms", "timeout_ms", "throughput_kbps", "retransmissions",
     "timeout_occurred", "window_size", "protocol", "simulated_loss"]
     filePath = cfg.filePathBase + fileName + ".csv"
-    timestamp = time.strftime(f"%Y-%m-%dT%H:%M:%S", time.gmtime(timestamp))
+    fancy_timestamp = time.strftime(f"%Y-%m-%dT%H:%M:%S", time.gmtime(timestamp))
     row = []
     row.append(str(segment))
+    row.append(str(fancy_timestamp))
     row.append(str(timestamp))
     row.append(str(sizeBytes))
     row.append(str(rtt*1000))
@@ -110,7 +112,7 @@ def do_csv(
     row.append(str(1 if timeoutHappened else 0))
     row.append(str(windowSize))
     row.append(str(protocol))
-    row.append(str(cfg.loseRate))
+    row.append(str(simulatedLoss))
     try:
         f = open(filePath, "x")
         f.close()
@@ -139,14 +141,14 @@ def list_from_csv_column(fileName, column) -> list:
             
 class ThreadRet(Thread):
     def __init__(self, group=None, target=None, name=None,
-                 args=(), kwargs={}, Verbose=None):
-        Thread.__init__(self, group, target, name, args, kwargs)
+                 args=(), kwargs={}, Verbose=None, daemon=False):
+        Thread.__init__(self, group, target, name, args, kwargs, daemon=daemon)
         self._return = None
 
     def run(self):
         if self._target is not None:
-            self._return = self._target(*self._args,
-                                                **self._kwargs)
+            self._return = self._target(*self._args, **self._kwargs)
+            
     def join(self, *args):
         Thread.join(self, *args)
         return self._return

@@ -73,6 +73,7 @@ def send_message(clientSocket: socket, pacote: msg.Pacote) -> (bytes, float):
     timeEnd = time.time()
     return (rawdata, timeEnd-timeStart)
 
+
 def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:
     """
         clientSocket:socket socket
@@ -115,7 +116,8 @@ def ack(clientSocket: socket, seq: int) -> msg.Error:
     """
 
     pacote = msg.Ack(seq)
-    return send_recv(clientSocket, pacote)
+    clientSocket.sendto(str(pacote).encode(cfg.encoding), cfg.server)
+    return 
 
 def fin(clientSocket: socket, checksum: str) -> msg.Done|msg.Timeout|msg.Error:
     """

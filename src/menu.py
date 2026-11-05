@@ -17,7 +17,6 @@ def main_menu() -> None:
         print("2. Testar SAW")
         print("3. Testar GBN")
         print("4. Testar SR")
-        print("5. Testar RTT Adaptativo")
         print("8. Ver perguntas")
         print("9. Alterar configurações")
         print("0. Sair do programa")

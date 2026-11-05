@@ -73,21 +73,25 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         daemon=True
     )
     fileThread.start()
+    simulatedLoss = dict()
 
+    csvTimestampPrevious = time.time()
+    cfg.rttEst = hsOk.RTT
+    cfg.rttDev = 0
+    cfg.rttTimeout = cfg.baseTimeout
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
         # Enviar REQ
         srvResponse = cs.req(clientSocket, seqCurrent)
+        if simulatedLoss.get(seqCurrent) == None: simulatedLoss[seqCurrent] = 0
         if not isinstance(srvResponse, msg.Data):
             # Manejamento de erros
             if csvRetransmissions == 0 and seqCurrent != 0: print()
             if isinstance(srvResponse, msg.Error):
-                print(f"ERRO: {srvResponse.msg}")
+                if srvResponse.msg == "Pacote descartado pelo cliente":
+                    simulatedLoss[seqCurrent] += 1
             elif isinstance(srvResponse, msg.Timeout):
-                print(f"TIMEOUT: Servidor não respondeu ao REQ({seqCurrent})")
                 csvTimeoutHappened = True
-            elif not isinstance(srvResponse, msg.Data):
-                print(f"ERRO: Erro desconhecido")
             csvRetransmissions += 1
             continue # para tentar receber novamente
 
@@ -95,7 +99,7 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
 
         # CSV data
         csvTimestamp = time.time()
-        csvSizeBytes = len(srvResponse.payload)
+        csvSizeBytes = cfg.seqSizeDefault
         csvRTT = srvResponse.RTT
         csvRTTEst = srvResponse.RTT
         csvTimeout = clientSocket.gettimeout()
@@ -114,14 +118,15 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
             csvRetransmissions,
             csvTimeoutHappened,
             csvWindowSize,
-            csvProtocol
+            csvProtocol,
+            simulatedLoss[seqCurrent]
         ))
 
         # Salvar resultado
         filePending.put(srvResponse)
 
         # ACK
-        # cs.ack(clientSocket, seqCurrent)
+        cs.ack(clientSocket, seqCurrent)
         seqCurrent += 1
 
         # Visualização da barra de carregamento
