@@ -5,7 +5,7 @@ hl = 30 ## Tamanho console bar
 serverName = '137.131.178.229'
 serverPort = 8080
 server = (serverName, serverPort)
-pcksize = 2048 ## recvfrom()
+pcksize = 65536 ## recvfrom()
 encoding = 'utf-8'
 
 # Configs Genéricas

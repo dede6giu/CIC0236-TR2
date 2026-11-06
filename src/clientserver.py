@@ -16,24 +16,25 @@ def close_socket(clientSocket: socket) -> None:
 
 def send_recv(clientSocket: socket, pacote: msg.Pacote) -> msg.Pacote:
     rtrnMsg, data, RTT = send_pick_header(clientSocket, pacote)
+    return match_header(rtrnMsg, data, RTT, pacote.seq)
+
+def match_header(rtrnMsg, data, RTT, seg=None):
     match rtrnMsg:
         case "PONG":
             return msg.Pong(RTT, data)
         case "OK":
             return msg.Ok(RTT, data)
         case "DATA":
-            if cfg.loseRate == 0:
-                return msg.Data(RTT, data)
             if rand.random() < cfg.loseRate:
-                return msg.Error(-1, b"Pacote descartado pelo cliente", seg=pacote.seq)
+                return msg.Error(-1, b"Pacote descartado pelo cliente", seg=seg)
             return msg.Data(RTT, data)
         case "DONE":
             return msg.Done(RTT, data)
         case "TIMEOUT":
-            seg = pacote.seq if isinstance(pacote, msg.Req) else -1
+            seg = -1 if seg == None else seg
             return msg.Timeout("Servidor não respondeu", seg=seg)
         case "ERROR":
-            seg = pacote.seq if isinstance(pacote, msg.Req) else -1
+            seg = -1 if seg == None else seg
             return msg.Error(RTT, data, seg=seg)
         case _:
             return msg.Error(-1, b"Resposta desconhecida do servidor")
@@ -72,6 +73,21 @@ def send_message(clientSocket: socket, pacote: msg.Pacote) -> (bytes, float):
     rawdata, flags = clientSocket.recvfrom(cfg.pcksize)
     timeEnd = time.time()
     return (rawdata, timeEnd-timeStart)
+
+def just_send(clientSocket, pacote: msg.Pacote) -> (float, int):
+    clientSocket.sendto(str(pacote).encode(cfg.encoding), cfg.server)
+    timeStart = time.perf_counter()
+    return (timeStart, pacote.seq)
+
+def just_recv(clientSocket, timeStart, seq) -> msg.Pacote:
+    try:
+        rawdata, flags = clientSocket.recvfrom(cfg.pcksize)
+        rtrnMsg, data = util.get_return_type(rawdata)
+        timeEnd = time.perf_counter()
+        return match_header(rtrnMsg, data, timeEnd-timeStart, seq)
+    except socket.timeout:
+        timeEnd = time.time()
+        return match_header('TIMEOUT', b'', timeEnd-timeStart, seq)
 
 
 def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:

@@ -140,5 +140,5 @@ def pcktloss() -> None:
         print("Valor inválido! Insira apenas o número.")
         return
     cfg.loseRate = novoLoseRate / 100
-    print(f"Novo tamanho de segmento (segs): {cfg.loseRate*100:.2f}%")
+    print(f"Novo taxa de perca (%): {cfg.loseRate*100:.2f}%")
     return

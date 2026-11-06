@@ -5,6 +5,7 @@ class Pacote:
         self.header = header.upper()
         self.RTT = float(RTT)
         self.clientSide = self.RTT < 0
+        self.seq = -1
 
     def __str__(self):
         return self.stringify()
