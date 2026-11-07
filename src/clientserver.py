@@ -3,6 +3,7 @@ import time
 import configurations as cfg
 import util
 import mensagens as msg
+import select
 
 def make_socket() -> socket:
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -112,6 +113,16 @@ def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:
     )
     srvResponse = send_recv(clientSocket, pacote)
     return srvResponse
+
+def clear_buffer(clientSocket: socket) -> None:
+    clientSocket.setblocking(False)
+    aux = [clientSocket]
+    while True:
+        ir, o, e = select.select(aux, [], [], 0.0)
+        if len(ir) == 0: break
+        for s in ir: s.recvfrom(1)
+    clientSocket.setblocking(True)
+    return
 
 def req(clientSocket: socket, seq: int) -> msg.Data|msg.Timeout|msg.Error:
     """

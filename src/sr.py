@@ -126,11 +126,13 @@ def sr(clientSocket, hsOk, filePath):
             clientSocket.settimeout(currTimeout)
 
         currWindow = seqCurrent + min(windowSize, hsOk.totalSegments-seqCurrent)
-        seqTransit = set([seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]])
         while seqNext < currWindow:
             reqList[seqNext] = cs.just_send(clientSocket, msg.Req(seqNext))[0]
             amountSent[seqNext] += 1
             seqNext += 1
+        seqTransit = set([seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]])
+
+        time.sleep(0.012)
 
         timeMax = time.time() + currTimeout
         while len(seqTransit) != 0 and time.time() < timeMax:
@@ -229,7 +231,6 @@ def main(clientSocket: socket) -> None:
         if isinstance(handshakeResult, msg.Timeout):
             print("TIMEOUT: Servidor não respondeu ao handshake")
         handshakeResult = cs.handshake(clientSocket)
-
 
     # Caminho para o arquivo...
     filePath = util.get_file_path(handshakeResult)

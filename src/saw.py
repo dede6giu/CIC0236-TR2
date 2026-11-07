@@ -41,6 +41,22 @@ def fileQueue(queue: Queue, filePath: str) -> None:
                 f.write(item.payload)
             queue.task_done()
 
+def rttQueue(queue: Queue) -> None:
+    while True:
+        try:
+            item = queue.get()
+        except Empty:
+            continue
+        else:
+            cfg.rttEst = (1-cfg.rttAlpha) * cfg.rttEst 
+            cfg.rttEst += cfg.rttAlpha * item
+            
+            cfg.rttDev = (1-cfg.rttBeta) * cfg.rttDev
+            cfg.rttDev += cfg.rttBeta * abs(item - cfg.rttEst)
+
+            cfg.rttTimeout = cfg.rttEst + 4*cfg.rttDev
+            queue.task_done()
+
 def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     """
         clientSocket:socket     conexão (já com handshake)
@@ -65,8 +81,8 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         daemon=True
     )
     csvThread.start()
-
-    # Outros setup
+    
+    # File buffering / building
     filePending = Queue()
     fileThread = Thread(
         target=fileQueue,
@@ -78,27 +94,46 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     for i in range(hsOk.totalSegments):
         simulatedLoss[i] = 0
 
-    csvTimestampPrevious = time.time()
+    # Cálculo do RTT dinâmico
     cfg.rttEst = hsOk.RTT
     cfg.rttDev = 0
     cfg.rttTimeout = cfg.baseTimeout
+    rttPending = Queue()
+    rttThread = Thread(
+        target=rttQueue,
+        args=(rttPending,),
+        daemon=True
+    )
+    rttThread.start()
+    rttPending.put(hsOk.RTT)
+    currTimeout = cfg.baseTimeout
+
+    csvTimestampPrevious = time.time()
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
+        # RTT Adaptativo
+        if cfg.rttAdapativo:
+            currTimeout = cfg.rttTimeout
+            clientSocket.settimeout(currTimeout)
+
         # Enviar REQ
         srvResponse = cs.req(clientSocket, seqCurrent)
+        timeWait = time.time()
         if not isinstance(srvResponse, msg.Data):
             # Manejamento de erros
             if csvRetransmissions == 0 and seqCurrent != 0: print()
             if isinstance(srvResponse, msg.Error):
-                if srvResponse.msg == "Pacote descartado pelo cliente":
-                    simulatedLoss[seqCurrent] += 1
+                rttPending.put(srvResponse.RTT)
             elif isinstance(srvResponse, msg.Timeout):
                 csvTimeoutHappened = True
             csvRetransmissions += 1
             continue # para tentar receber novamente
 
         if rand.random() < cfg.loseRate:
+            rttPending.put(srvResponse.RTT)
             simulatedLoss[seqCurrent] += 1
+            timeWait = currTimeout - (time.time() - timeWait)
+            time.sleep(0 if timeWait < 0 else timeWait)
             continue
 
         # Sucesso!
@@ -108,7 +143,7 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         csvSizeBytes = cfg.seqSizeDefault
         csvRTT = srvResponse.RTT
         csvRTTEst = srvResponse.RTT
-        csvTimeout = clientSocket.gettimeout()
+        csvTimeout = currTimeout
         # csvThroughput = (csvSizeBytes) / (1000*(csvTimestamp-csvTimestampPrevious))
         csvThroughput = (csvSizeBytes) / (1000*csvRTT)
         csvWindowSize = 1
@@ -130,6 +165,7 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
 
         # Salvar resultado
         filePending.put(srvResponse)
+        rttPending.put(srvResponse.RTT)
 
         # ACK
         cs.ack(clientSocket, seqCurrent)
