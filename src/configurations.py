@@ -18,7 +18,7 @@ reqWindowSizeDefault = 4
 loseRate = 0
 
 # RTT Adaptativo
-rttAdapativo = True
+rttAdapativo = False
 rttAlpha = 0.125
 rttBeta = 0.25
 rttEst = 0
