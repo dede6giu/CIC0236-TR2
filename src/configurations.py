@@ -9,7 +9,7 @@ pcksize = 65536 ## recvfrom()
 encoding = 'utf-8'
 
 # Configs Genéricas
-baseTimeout = 5.0
+baseTimeout = 1.0
 grupo = 'grupo03'
 filetype = 'small' ## small / medium / large
 filePathBase = './results/'
@@ -18,7 +18,7 @@ reqWindowSizeDefault = 4
 loseRate = 0
 
 # RTT Adaptativo
-rttAdapativo = False
+rttAdapativo = True
 rttAlpha = 0.125
 rttBeta = 0.25
 rttEst = 0

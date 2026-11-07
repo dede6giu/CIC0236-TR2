@@ -107,12 +107,9 @@ def gbn(clientSocket, hsOk, filePath):
     simulatedLoss = dict()
     hadTimeout = dict()
     for i in range(hsOk.totalSegments):
-        if hadTimeout.get(i) == None:
-            hadTimeout[i] = False
-        if simulatedLoss.get(i) == None:
-            simulatedLoss[i] = 0
-        if amountSent.get(i) == None:
-            amountSent[i] = 0
+        hadTimeout[i] = False
+        simulatedLoss[i] = 0
+        amountSent[i] = 0
 
     # Protocolo GBN
     while seqCurrent < hsOk.totalSegments:
@@ -136,7 +133,7 @@ def gbn(clientSocket, hsOk, filePath):
         timeStart = reqList[0][0]
         reqAmount = len(reqList)
         i = 0
-        while i < reqAmount and time.perf_counter()-timeStart < currTimeout:
+        while i < reqAmount and time.time()-timeStart < currTimeout:
             srvResponse = cs.just_recv(clientSocket, *reqList[i])
             seqTreat = srvResponse.seq
             seqRTT = srvResponse.RTT
@@ -151,23 +148,27 @@ def gbn(clientSocket, hsOk, filePath):
                 i += 1
                 hadTimeout[seqTreat] = True
                 break
+            if not isinstance(srvResponse, msg.Data):
+                continue
 
             # Ordem incorreta
             if seqTreat != seqCurrent:
                 i += 1
                 continue
 
+            # Simulação de perda
             if rand.random() < cfg.loseRate:
                 rttPending.put(seqRTT)
                 simulatedLoss[seqTreat] += 1
                 i += 1
-                continue
+                time.sleep(timeMax - time.time())
+                break
 
             # Sucesso!
             rttPending.put(seqRTT)
             
             # CSV data
-            csvTimestamp = time.perf_counter()
+            csvTimestamp = time.time()
             csvSizeBytes = cfg.seqSizeDefault
             csvRTT = seqRTT
             csvRTTEst = cfg.rttEst

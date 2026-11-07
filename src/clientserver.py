@@ -73,13 +73,22 @@ def send_message(clientSocket: socket, pacote: msg.Pacote) -> (bytes, float):
 
 def just_send(clientSocket, pacote: msg.Pacote) -> (float, int):
     clientSocket.sendto(str(pacote).encode(cfg.encoding), cfg.server)
-    timeStart = time.perf_counter()
+    timeStart = time.time()
     return (timeStart, pacote.seq)
 
-def just_recv(clientSocket, timeStart, seq) -> msg.Pacote:
+def just_sr(clientSocket):
     try:
         rawdata, flags = clientSocket.recvfrom(cfg.pcksize)
-        timeEnd = time.perf_counter()
+        timeEnd = time.time()
+        rtrnMsg, data = util.get_return_type(rawdata)
+        return (rtrnMsg, data, timeEnd)
+    except socket.timeout:
+        return None
+
+def just_recv(clientSocket, timeStart, seq=None) -> msg.Pacote:
+    try:
+        rawdata, flags = clientSocket.recvfrom(cfg.pcksize)
+        timeEnd = time.time()
         rtrnMsg, data = util.get_return_type(rawdata)
         return match_header(rtrnMsg, data, timeEnd-timeStart, seq)
     except socket.timeout:
