@@ -132,14 +132,13 @@ def sr(clientSocket, hsOk, filePath):
             seqNext += 1
         seqTransit = [seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]]
 
-        time.sleep(0.012)
+        # time.sleep(0.012)
 
         timeMax = time.time() + currTimeout
-        while len(seqTransit) != 0 and time.time() < timeMax:
-            rcvData = cs.just_sr(clientSocket)
-            if rcvData == None:
-                break
-            srvResponse = cs.match_header(*rcvData)
+        rcvData = cs.get_all_packets(clientSocket, len(seqTransit))
+
+        for p in rcvData:
+            srvResponse = cs.mount_data(p[0], reqList, p[1])
             seqTreat = srvResponse.seq
             if seqTreat < 0 or packetReceived[seqTreat]:
                 continue
@@ -147,7 +146,6 @@ def sr(clientSocket, hsOk, filePath):
                 continue
             if seqTreat < seqCurrent or seqTreat > seqNext:
                 continue
-            srvResponse.RTT = rcvData[2] - reqList[seqTreat]
             seqRTT = srvResponse.RTT
 
             # Erro / Timeout
