@@ -6,6 +6,7 @@ import time
 import graphs
 from threading import Thread
 from queue import Empty, Queue
+import random as rand
 
 def csvQueue(queue: Queue) -> None:
     curr = 0
@@ -74,6 +75,8 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     )
     fileThread.start()
     simulatedLoss = dict()
+    for i in range(hsOk.totalSegments):
+        simulatedLoss[i] = 0
 
     csvTimestampPrevious = time.time()
     cfg.rttEst = hsOk.RTT
@@ -83,7 +86,6 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     while (seqCurrent < hsOk.totalSegments):
         # Enviar REQ
         srvResponse = cs.req(clientSocket, seqCurrent)
-        if simulatedLoss.get(seqCurrent) == None: simulatedLoss[seqCurrent] = 0
         if not isinstance(srvResponse, msg.Data):
             # Manejamento de erros
             if csvRetransmissions == 0 and seqCurrent != 0: print()
@@ -94,6 +96,10 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
                 csvTimeoutHappened = True
             csvRetransmissions += 1
             continue # para tentar receber novamente
+
+        if rand.random() < cfg.loseRate:
+            simulatedLoss[seqCurrent] += 1
+            continue
 
         # Sucesso!
 

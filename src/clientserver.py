@@ -3,7 +3,6 @@ import time
 import configurations as cfg
 import util
 import mensagens as msg
-import random as rand
 
 def make_socket() -> socket:
     clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -25,8 +24,6 @@ def match_header(rtrnMsg, data, RTT, seg=None):
         case "OK":
             return msg.Ok(RTT, data)
         case "DATA":
-            if rand.random() < cfg.loseRate:
-                return msg.Error(-1, b"Pacote descartado pelo cliente", seg=seg)
             return msg.Data(RTT, data)
         case "DONE":
             return msg.Done(RTT, data)
@@ -82,8 +79,8 @@ def just_send(clientSocket, pacote: msg.Pacote) -> (float, int):
 def just_recv(clientSocket, timeStart, seq) -> msg.Pacote:
     try:
         rawdata, flags = clientSocket.recvfrom(cfg.pcksize)
-        rtrnMsg, data = util.get_return_type(rawdata)
         timeEnd = time.perf_counter()
+        rtrnMsg, data = util.get_return_type(rawdata)
         return match_header(rtrnMsg, data, timeEnd-timeStart, seq)
     except socket.timeout:
         timeEnd = time.time()

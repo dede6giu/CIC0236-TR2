@@ -6,6 +6,7 @@ import graphs
 import mensagens as msg
 from threading import Thread
 from queue import Empty, Queue
+import random as rand
 
 def csvQueue(queue: Queue) -> None:
     curr = 0
@@ -47,9 +48,6 @@ def fileQueue(queue: Queue, filePath: str) -> None:
             queue.task_done()
 
 def rttQueue(queue: Queue) -> None:
-    cfg.rttEst = 0
-    cfg.rttDev = 0
-    cfg.rttTimeout = cfg.baseTimeout
     while True:
         try:
             item = queue.get()
@@ -88,6 +86,9 @@ def gbn(clientSocket, hsOk, filePath):
     fileThread.start()
 
     # Cálculo do RTT dinâmico
+    cfg.rttEst = hsOk.RTT
+    cfg.rttDev = 0
+    cfg.rttTimeout = cfg.baseTimeout
     rttPending = Queue()
     rttThread = Thread(
         target=rttQueue,
@@ -136,7 +137,7 @@ def gbn(clientSocket, hsOk, filePath):
         reqAmount = len(reqList)
         i = 0
         while i < reqAmount and time.perf_counter()-timeStart < currTimeout:
-            srvResponse = cs.just_recv(clientSocket, reqList[i][0], reqList[i][1])
+            srvResponse = cs.just_recv(clientSocket, *reqList[i])
             seqTreat = srvResponse.seq
             seqRTT = srvResponse.RTT
 
@@ -144,13 +145,21 @@ def gbn(clientSocket, hsOk, filePath):
             if isinstance(srvResponse, msg.Error):
                 if not srvResponse.clientSide:
                     rttPending.put(seqRTT)
-                if srvResponse.msg == "Pacote descartado pelo cliente":
-                    simulatedLoss[seqTreat] += 1
                 i += 1
                 continue
+            if isinstance(srvResponse, msg.Timeout):
+                i += 1
+                hadTimeout[seqTreat] = True
+                break
 
             # Ordem incorreta
             if seqTreat != seqCurrent:
+                i += 1
+                continue
+
+            if rand.random() < cfg.loseRate:
+                rttPending.put(seqRTT)
+                simulatedLoss[seqTreat] += 1
                 i += 1
                 continue
 
@@ -195,7 +204,7 @@ def gbn(clientSocket, hsOk, filePath):
 
         # Timeout!
         while i < reqAmount:
-            srvResponse = cs.just_recv(clientSocket, reqList[i][0], reqList[i][1])
+            srvResponse = cs.just_recv(clientSocket, *reqList[i])
             hadTimeout[srvResponse.seq] = True
             i += 1
 

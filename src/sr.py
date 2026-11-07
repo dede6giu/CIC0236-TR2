@@ -6,6 +6,7 @@ import graphs
 import mensagens as msg
 from threading import Thread
 from queue import Empty, Queue
+import random as rand
 
 def csvQueue(queue: Queue) -> None:
     curr = 0
@@ -47,15 +48,15 @@ def fileQueue(queue: Queue, filePath: str) -> None:
             queue.task_done()
 
 def rttQueue(queue: Queue) -> None:
-    cfg.rttEst = 0
-    cfg.rttDev = 0
-    cfg.rttTimeout = cfg.baseTimeout
     while True:
         try:
             item = queue.get()
         except Empty:
             continue
         else:
+            if item < 0:
+                queue.task_done()
+                continue
             cfg.rttEst = (1-cfg.rttAlpha) * cfg.rttEst 
             cfg.rttEst += cfg.rttAlpha * item
             
@@ -77,7 +78,7 @@ def sr(clientSocket, hsOk, filePath):
         daemon=True
     )
     csvThread.start()
-
+    
     # File buffering / building
     filePending = Queue()
     fileThread = Thread(
@@ -88,6 +89,9 @@ def sr(clientSocket, hsOk, filePath):
     fileThread.start()
 
     # Cálculo do RTT dinâmico
+    cfg.rttEst = hsOk.RTT
+    cfg.rttDev = 0
+    cfg.rttTimeout = cfg.baseTimeout
     rttPending = Queue()
     rttThread = Thread(
         target=rttQueue,
@@ -101,18 +105,17 @@ def sr(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     seqCurrent = 0
     currTimeout = cfg.baseTimeout
-    packetReceived = set()
+    packetReceived = [False] * hsOk.totalSegments
 
+    packetTimeRecv = dict()
     amountSent = dict()
     simulatedLoss = dict()
     hadTimeout = dict()
     for i in range(hsOk.totalSegments):
-        if hadTimeout.get(i) == None:
-            hadTimeout[i] = False
-        if simulatedLoss.get(i) == None:
-            simulatedLoss[i] = 0
-        if amountSent.get(i) == None:
-            amountSent[i] = 0
+        hadTimeout[i] = False
+        simulatedLoss[i] = 0
+        amountSent[i] = 0
+        packetTimeRecv[i] = 0
 
     # Protocolo SR
     while seqCurrent < hsOk.totalSegments:
@@ -129,13 +132,11 @@ def sr(clientSocket, hsOk, filePath):
         # Envia a janela de REQs
         while seqAux < currWindow:
             seqTreat = seqCurrent + seqAux
-            if seqTreat in packetReceived:
-                seqAux += 1
-                continue
             reqList.append(cs.just_send(clientSocket, msg.Req(seqTreat)))
+            packetTimeRecv[seqTreat] = time.perf_counter()
             amountSent[seqTreat] += 1
             seqAux += 1
-        
+
         timeStart = reqList[0][0]
         reqAmount = len(reqList)
         i = 0
@@ -143,20 +144,28 @@ def sr(clientSocket, hsOk, filePath):
             srvResponse = cs.just_recv(clientSocket, *reqList[i])
             seqTreat = srvResponse.seq
             seqRTT = srvResponse.RTT
-
+            
             # Erro
             if isinstance(srvResponse, msg.Error):
                 if not srvResponse.clientSide:
                     rttPending.put(seqRTT)
-                if srvResponse.msg == "Pacote descartado pelo cliente":
-                    simulatedLoss[seqTreat] += 1
                 i += 1
                 continue
+            if isinstance(srvResponse, msg.Timeout):
+                i += 1
+                hadTimeout[seqTreat] = True
+                break
 
+            if rand.random() < cfg.loseRate:
+                rttPending.put(seqRTT)
+                simulatedLoss[seqTreat] += 1
+                i += 1
+                continue
+            
             # Sucesso!
             rttPending.put(seqRTT)
-            packetReceived.add(seqTreat)
-            
+            packetReceived[seqTreat] = True
+
             # CSV data
             csvTimestamp = time.perf_counter()
             csvSizeBytes = cfg.seqSizeDefault
@@ -187,25 +196,25 @@ def sr(clientSocket, hsOk, filePath):
             
             # Salvar resultado
             filePending.put(srvResponse)
+            cs.ack(clientSocket, seqTreat)
             
             i += 1
-
+            
         # Timeout!
         while i < reqAmount:
             srvResponse = cs.just_recv(clientSocket, *reqList[i])
             hadTimeout[srvResponse.seq] = True
             i += 1
-
+            
         # Atualizar seqCurrent
-        while seqCurrent in packetReceived:
-            cs.ack(clientSocket, seqCurrent)
+        while seqCurrent < hsOk.totalSegments and packetReceived[seqCurrent]:
             seqCurrent += 1
 
         # Barra de carregamento
         util.print_loadbar(
             seqCurrent, 
             hsOk.totalSegments,
-            throughput=totalSegSize/(1000*(time.time()-loadbarTime))
+            # throughput=totalSegSize/(1000*(time.time()-loadbarTime))
         )
     
     filePending.join()
