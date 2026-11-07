@@ -130,7 +130,7 @@ def sr(clientSocket, hsOk, filePath):
             reqList[seqNext] = cs.just_send(clientSocket, msg.Req(seqNext))[0]
             amountSent[seqNext] += 1
             seqNext += 1
-        seqTransit = set([seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]])
+        seqTransit = [seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]]
 
         time.sleep(0.012)
 
@@ -142,6 +142,10 @@ def sr(clientSocket, hsOk, filePath):
             srvResponse = cs.match_header(*rcvData)
             seqTreat = srvResponse.seq
             if seqTreat < 0 or packetReceived[seqTreat]:
+                continue
+            if seqTransit.count(seqTreat) == 0:
+                continue
+            if seqTreat < seqCurrent or seqTreat > seqNext:
                 continue
             srvResponse.RTT = rcvData[2] - reqList[seqTreat]
             seqRTT = srvResponse.RTT
@@ -167,7 +171,7 @@ def sr(clientSocket, hsOk, filePath):
             rttPending.put(seqRTT)
             cs.ack(clientSocket, seqTreat)
             packetReceived[seqTreat] = True
-            seqTransit.discard(seqTreat)
+            seqTransit.remove(seqTreat)
             filePending.put(srvResponse)
 
             # CSV data

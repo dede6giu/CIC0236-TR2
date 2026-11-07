@@ -114,13 +114,14 @@ def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:
     srvResponse = send_recv(clientSocket, pacote)
     return srvResponse
 
-def clear_buffer(clientSocket: socket) -> None:
+def get_all_packets(clientSocket: socket) -> [(bytes, float)]:
     clientSocket.setblocking(False)
-    aux = [clientSocket]
+    result = []
     while True:
-        ir, o, e = select.select(aux, [], [], 0.0)
+        ir, o, e = select.select([clientSocket], [], [], 0.0)
         if len(ir) == 0: break
-        for s in ir: s.recvfrom(1)
+        packet = s.recvfrom(cfg.pcksize)
+        result.append((packet, time.time()))
     clientSocket.setblocking(True)
     return
 

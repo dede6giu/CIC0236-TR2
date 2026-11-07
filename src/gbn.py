@@ -129,12 +129,15 @@ def gbn(clientSocket, hsOk, filePath):
             reqList.append(cs.just_send(clientSocket, msg.Req(seqTreat)))
             amountSent[seqTreat] += 1
             seqAux += 1
+
+        time.sleep(0.012)
         
         timeStart = reqList[0][0]
         reqAmount = len(reqList)
         i = 0
         while i < reqAmount and time.time()-timeStart < currTimeout:
             srvResponse = cs.just_recv(clientSocket, *reqList[i])
+            timeMax = time.time()
             seqTreat = srvResponse.seq
             seqRTT = srvResponse.RTT
 
@@ -161,7 +164,8 @@ def gbn(clientSocket, hsOk, filePath):
                 rttPending.put(seqRTT)
                 simulatedLoss[seqTreat] += 1
                 i += 1
-                time.sleep(timeMax - time.time())
+                timeMax = currTimeout - (time.time()-timeMax)
+                time.sleep(0 if timeMax < 0 else timeMax)
                 break
 
             # Sucesso!
