@@ -102,6 +102,7 @@ def gbn(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     seqCurrent = 0
     currTimeout = cfg.baseTimeout
+    simulateTimeout = False
 
     amountSent = dict()
     simulatedLoss = dict()
@@ -129,13 +130,13 @@ def gbn(clientSocket, hsOk, filePath):
             reqList.append(cs.just_send(clientSocket, msg.Req(seqTreat)))
             amountSent[seqTreat] += 1
             seqAux += 1
-
-        time.sleep(0.012)
         
         timeStart = reqList[0][0]
         reqAmount = len(reqList)
+        simulateTimeout = False
+        timeMaxWait = time.time() + currTimeout
         i = 0
-        while i < reqAmount and time.time()-timeStart < currTimeout:
+        while i < reqAmount and time.time() < timeMaxWait:
             srvResponse = cs.just_recv(clientSocket, *reqList[i])
             timeMax = time.time()
             seqTreat = srvResponse.seq
@@ -150,7 +151,8 @@ def gbn(clientSocket, hsOk, filePath):
             if isinstance(srvResponse, msg.Timeout):
                 i += 1
                 hadTimeout[seqTreat] = True
-                break
+                simulateTimeout = True
+                continue
             if not isinstance(srvResponse, msg.Data):
                 continue
 
@@ -211,7 +213,12 @@ def gbn(clientSocket, hsOk, filePath):
         while i < reqAmount:
             srvResponse = cs.just_recv(clientSocket, *reqList[i])
             hadTimeout[srvResponse.seq] = True
+            simulateTimeout = True
             i += 1
+
+        if simulateTimeout:
+            while time.time() < timeMaxWait:
+                time.sleep(0.001)
 
         # Barra de carregamento
         util.print_loadbar(

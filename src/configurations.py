@@ -18,12 +18,13 @@ reqWindowSizeDefault = 4
 loseRate = 0
 
 # RTT Adaptativo
-rttAdapativo = False
+rttAdapativo = True
 rttAlpha = 0.125
 rttBeta = 0.25
 rttEst = 0
 rttDev = 0
 rttTimeout = 0
+rttErro = 0.012
 
 # CSV Column Constants
 csvSEGMENT = (0, int, "segment")

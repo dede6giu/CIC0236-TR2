@@ -106,6 +106,7 @@ def sr(clientSocket, hsOk, filePath):
     windowSize = cfg.reqWindowSizeDefault
     seqCurrent = 0
     seqNext = 0
+    simulateTimeout = False
     packetReceived = dict()
     reqList = dict()
     amountSent = dict()
@@ -132,11 +133,12 @@ def sr(clientSocket, hsOk, filePath):
             seqNext += 1
         seqTransit = [seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]]
 
-        # time.sleep(0.012)
-
+        rcvData = []
+        while len(rcvData) < len(seqTransit):
+            rcvData += cs.get_all_packets(clientSocket, len(seqTransit), time.time() + currTimeout)
         timeMax = time.time() + currTimeout
-        rcvData = cs.get_all_packets(clientSocket, len(seqTransit))
 
+        simulateTimeout = False
         for p in rcvData:
             srvResponse = cs.mount_data(p[0], reqList, p[1])
             seqTreat = srvResponse.seq
@@ -147,15 +149,20 @@ def sr(clientSocket, hsOk, filePath):
             if seqTreat < seqCurrent or seqTreat > seqNext:
                 continue
             seqRTT = srvResponse.RTT
+            if seqRTT < cfg.rttErro:
+                # Pacote não foi processado anteriormente,
+                # cria erro de mensuração
+                continue
 
             # Erro / Timeout
             if isinstance(srvResponse, msg.Error):
-                if not srvResponse.clientSide:
-                    rttPending.put(seqRTT)
+                rttPending.put(seqRTT)
                 continue
             if isinstance(srvResponse, msg.Timeout):
                 hadTimeout[seqTreat] = True
-                break
+                simulateTimeout = True
+                rttPending.put(seqRTT)
+                continue
             if not isinstance(srvResponse, msg.Data):
                 continue
 
@@ -198,10 +205,15 @@ def sr(clientSocket, hsOk, filePath):
                 csvProtocol,
                 csvSimulatedLoss
             ))
-
+        
+        if simulateTimeout or len(seqTransit) > 0:
+            while time.time() < timeMax:
+                time.sleep(0.001)
+    
         for seqTreat in seqTransit:
             reqList[seqTreat] = cs.just_send(clientSocket, msg.Req(seqTreat))[0]
             amountSent[seqTreat] += 1
+            hadTimeout[seqTreat] = True
 
         while packetReceived.get(seqCurrent):
             seqCurrent += 1

@@ -114,21 +114,20 @@ def handshake(clientSocket: socket) -> msg.Ok|msg.Timeout|msg.Error:
     srvResponse = send_recv(clientSocket, pacote)
     return srvResponse
 
-def get_all_packets(clientSocket: socket, qtt) -> [(bytes, float)]:
-    clientSocket.setblocking(False)
+def get_all_packets(clientSocket: socket, qtt, timeMax) -> [(bytes, float)]:
     result = []
-    # timeLimit = time.time() + clientSocket.gettimeout()
-    # while qtt > 0 and time.time() < timeLimit:
-    while qtt > 0:
+    while time.time() < timeMax:
+        if qtt <= 0: break
         ir, o, e = select.select([clientSocket], [], [], 0.0)
         if len(ir) == 0: continue
         try:
             packet, flags = clientSocket.recvfrom(cfg.pcksize)
         except socket.timeout:
             packet = b'TIMEOUT'
-        qtt -= 1
         result.append((packet, time.time()))
-    clientSocket.setblocking(True)
+        qtt -= 1
+    else:
+        result.append((b'TIMEOUT', time.time()))
     return result
 
 def mount_data(rawdata, timeStart, timeEnd):
