@@ -132,12 +132,14 @@ def sr(clientSocket, hsOk, filePath):
             amountSent[seqNext] += 1
             seqNext += 1
         seqTransit = [seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]]
-
+        time.sleep(0.001)
         rcvData = []
         while len(rcvData) < len(seqTransit):
-            rcvData += cs.get_all_packets(clientSocket, len(seqTransit), time.time() + currTimeout)
+            aux, flag = cs.get_all_packets(clientSocket, len(seqTransit))
+            rcvData += aux
+            if flag: break
         timeMax = time.time() + currTimeout
-
+        time.sleep(0.001)
         simulateTimeout = False
         for p in rcvData:
             srvResponse = cs.mount_data(p[0], reqList, p[1])
@@ -153,6 +155,10 @@ def sr(clientSocket, hsOk, filePath):
                 # Pacote não foi processado anteriormente,
                 # cria erro de mensuração
                 continue
+            if seqRTT > currTimeout:
+                hadTimeout[seqTreat] = True
+                rttPending.put(seqRTT)
+                continue
 
             # Erro / Timeout
             if isinstance(srvResponse, msg.Error):
@@ -160,7 +166,6 @@ def sr(clientSocket, hsOk, filePath):
                 continue
             if isinstance(srvResponse, msg.Timeout):
                 hadTimeout[seqTreat] = True
-                simulateTimeout = True
                 rttPending.put(seqRTT)
                 continue
             if not isinstance(srvResponse, msg.Data):
@@ -170,6 +175,7 @@ def sr(clientSocket, hsOk, filePath):
             if rand.random() < cfg.loseRate:
                 rttPending.put(seqRTT)
                 simulatedLoss[seqTreat] += 1
+                simulateTimeout = True
                 continue
 
             # Sucesso!
@@ -213,7 +219,6 @@ def sr(clientSocket, hsOk, filePath):
         for seqTreat in seqTransit:
             reqList[seqTreat] = cs.just_send(clientSocket, msg.Req(seqTreat))[0]
             amountSent[seqTreat] += 1
-            hadTimeout[seqTreat] = True
 
         while packetReceived.get(seqCurrent):
             seqCurrent += 1

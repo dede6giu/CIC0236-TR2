@@ -151,7 +151,6 @@ def gbn(clientSocket, hsOk, filePath):
             if isinstance(srvResponse, msg.Timeout):
                 i += 1
                 hadTimeout[seqTreat] = True
-                simulateTimeout = True
                 continue
             if not isinstance(srvResponse, msg.Data):
                 continue
@@ -168,6 +167,7 @@ def gbn(clientSocket, hsOk, filePath):
                 i += 1
                 timeMax = currTimeout - (time.time()-timeMax)
                 time.sleep(0 if timeMax < 0 else timeMax)
+                simulateTimeout = True
                 break
 
             # Sucesso!
