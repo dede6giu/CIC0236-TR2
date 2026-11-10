@@ -124,7 +124,7 @@ def sr(clientSocket, hsOk, filePath):
     while seqCurrent < hsOk.totalSegments:
         if cfg.rttAdapativo:
             currTimeout = cfg.rttTimeout
-            clientSocket.settimeout(currTimeout)
+            clientSocket.settimeout(currTimeout + cfg.rttErro)
 
         currWindow = seqCurrent + min(windowSize, hsOk.totalSegments-seqCurrent)
         while seqNext < currWindow:
@@ -132,23 +132,19 @@ def sr(clientSocket, hsOk, filePath):
             amountSent[seqNext] += 1
             seqNext += 1
         seqTransit = [seq for seq in range(seqCurrent, seqNext) if not packetReceived[seq]]
-        time.sleep(0.001)
+        
         rcvData = []
+        timeMax = time.time() + currTimeout
         while len(rcvData) < len(seqTransit):
             aux, flag = cs.get_all_packets(clientSocket, len(seqTransit))
             rcvData += aux
             if flag: break
-        timeMax = time.time() + currTimeout
-        time.sleep(0.001)
+        
         simulateTimeout = False
         for p in rcvData:
             srvResponse = cs.mount_data(p[0], reqList, p[1])
             seqTreat = srvResponse.seq
-            if seqTreat < 0 or packetReceived[seqTreat]:
-                continue
-            if seqTransit.count(seqTreat) == 0:
-                continue
-            if seqTreat < seqCurrent or seqTreat > seqNext:
+            if packetReceived.get(seqTreat) == True:
                 continue
             seqRTT = srvResponse.RTT
             if seqRTT < cfg.rttErro:
@@ -165,8 +161,9 @@ def sr(clientSocket, hsOk, filePath):
                 rttPending.put(seqRTT)
                 continue
             if isinstance(srvResponse, msg.Timeout):
+                rttPending.put(cfg.baseTimeout)
                 hadTimeout[seqTreat] = True
-                rttPending.put(seqRTT)
+                # rttPending.put(seqRTT)
                 continue
             if not isinstance(srvResponse, msg.Data):
                 continue
@@ -212,23 +209,25 @@ def sr(clientSocket, hsOk, filePath):
                 csvSimulatedLoss
             ))
         
-        if simulateTimeout or len(seqTransit) > 0:
+            while packetReceived.get(seqCurrent) == True:
+                seqCurrent += 1
+        
+        if simulateTimeout and len(seqTransit) > 0:
             while time.time() < timeMax:
                 time.sleep(0.001)
-    
+        
         for seqTreat in seqTransit:
             reqList[seqTreat] = cs.just_send(clientSocket, msg.Req(seqTreat))[0]
             amountSent[seqTreat] += 1
-
-        while packetReceived.get(seqCurrent):
-            seqCurrent += 1
         
         # Barra de carregamento
-        util.print_loadbar(
-            seqCurrent, 
-            hsOk.totalSegments,
-        )
-
+        # util.print_loadbar(
+        #     seqCurrent, 
+        #     hsOk.totalSegments,
+        # )
+        print(f'\r{seqCurrent}/{hsOk.totalSegments}', end='')
+        print(f'    {currTimeout}', end='')
+    print()
     filePending.join()
     csvPending.join()
     rttPending.join()

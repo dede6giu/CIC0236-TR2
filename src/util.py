@@ -96,7 +96,7 @@ def do_csv(
         ) -> None:
     fields = ["segment", "timestamp", "time_unix", "size_bytes", "rtt_ms",
     "rtt_estimated_ms", "timeout_ms", "throughput_kbps", "retransmissions",
-    "timeout_occurred", "window_size", "protocol", "simulated_loss"]
+    "timeout_occurred", "window_size", "protocol", "simulated_loss", "rtt_adpt"]
     filePath = cfg.filePathBase + fileName + ".csv"
     fancy_timestamp = time.strftime(f"%Y-%m-%dT%H:%M:%S", time.gmtime(timestamp))
     row = []
@@ -113,6 +113,7 @@ def do_csv(
     row.append(str(windowSize))
     row.append(str(protocol))
     row.append(str(simulatedLoss))
+    row.append(str(1 if cfg.rttAdapativo else 0))
     try:
         f = open(filePath, "x")
         f.close()

@@ -16,9 +16,12 @@ def csvQueue(queue: Queue) -> None:
         except Empty:
             continue
         else:
-            if item[1] != curr:
+            if item[1] > curr:
                 queue.task_done()
                 queue.put(item)
+                continue
+            if item[1] < curr:
+                queue.task_done()
                 continue
             curr += 1
             util.do_csv(*item)
@@ -32,9 +35,12 @@ def fileQueue(queue: Queue, filePath: str) -> None:
         except Empty:
             continue
         else:
-            if item.seq != curr:
+            if item.seq > curr:
                 queue.task_done()
                 queue.put(item)
+                continue
+            if item.seq < curr:
+                queue.task_done()
                 continue
             curr += 1
             with open(filePath, "ab") as f:
@@ -48,6 +54,9 @@ def rttQueue(queue: Queue) -> None:
         except Empty:
             continue
         else:
+            if item < 0:
+                queue.task_done()
+                continue
             cfg.rttEst = (1-cfg.rttAlpha) * cfg.rttEst 
             cfg.rttEst += cfg.rttAlpha * item
             
@@ -112,22 +121,25 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
     seqCurrent = 0
     while (seqCurrent < hsOk.totalSegments):
         # RTT Adaptativo
-        if cfg.rttAdapativo:
-            currTimeout = cfg.rttTimeout
-            clientSocket.settimeout(currTimeout)
+        # if cfg.rttAdapativo:
+        #     currTimeout = cfg.rttTimeout
+        #     clientSocket.settimeout(currTimeout)
 
         # Enviar REQ
         srvResponse = cs.req(clientSocket, seqCurrent)
         timeWait = time.time()
         if not isinstance(srvResponse, msg.Data):
             # Manejamento de erros
-            if csvRetransmissions == 0 and seqCurrent != 0: print()
             if isinstance(srvResponse, msg.Error):
                 rttPending.put(srvResponse.RTT)
             elif isinstance(srvResponse, msg.Timeout):
                 csvTimeoutHappened = True
             csvRetransmissions += 1
             continue # para tentar receber novamente
+
+        if srvResponse.seq != seqCurrent:
+            #pacote errado!!!
+            continue
 
         if rand.random() < cfg.loseRate:
             rttPending.put(srvResponse.RTT)
@@ -171,16 +183,19 @@ def saw(clientSocket: socket, hsOk: msg.Ok, filePath: str) -> str:
         cs.ack(clientSocket, seqCurrent)
         seqCurrent += 1
 
-        # Visualização da barra de carregamento
-        util.print_loadbar(seqCurrent, hsOk.totalSegments, throughput=csvThroughput)
-
         # Reset das variáveis
         csvRetransmissions = 0
         csvTimeoutHappened = False
         csvTimestampPrevious = csvTimestamp
 
+        # Visualização da barra de carregamento
+        # util.print_loadbar(seqCurrent, hsOk.totalSegments, throughput=csvThroughput)
+        print(f'\r{seqCurrent}/{hsOk.totalSegments}', end='')
+    print()
+    time.sleep(2)
     filePending.join()
     csvPending.join()
+    rttPending.join()
     return csvFileName
 
 def main(clientSocket: socket) -> None:

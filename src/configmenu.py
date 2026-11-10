@@ -12,6 +12,7 @@ def main() -> None:
         print("5. Tamanho de segmento padrão")
         print("6. Tamanho de janela padrão")
         print("7. Taxa de perda de pacote")
+        print("8. RTT Adaptativo")
         print("0. Retornar ao Menu Principal")
         
         print("=-"*cfg.hl)
@@ -40,6 +41,8 @@ def main() -> None:
                 winsize()
             case 7:
                 pcktloss()
+            case 8:
+                rttAdpt()
             case _:
                 print("Opção inválida")
     return
@@ -141,4 +144,25 @@ def pcktloss() -> None:
         return
     cfg.loseRate = novoLoseRate / 100
     print(f"Novo taxa de perca (%): {cfg.loseRate*100:.2f}%")
+    return
+
+def rttAdpt() -> None:
+    print(f"RTT Adaptativo atual: {"Ativo" if cfg.rttAdapativo else "Desativo"}")
+    print(f"0. Desativo")
+    print(f"1. Ativo")
+    opcao = input("Escolha uma opção: ")
+    try:
+        opcao = int(opcao)
+    except ValueError:
+        print("Opção inválida")
+        return
+    match opcao:
+        case 0:
+            cfg.rttAdapativo = False
+        case 1:
+            cfg.rttAdapativo = True
+        case _:
+            print("Opção inválida")
+            return
+    print(f"RTT Adaptativo novo: {"Ativo" if cfg.rttAdapativo else "Desativo"}")
     return

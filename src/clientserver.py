@@ -118,8 +118,11 @@ def get_all_packets(clientSocket: socket, qtt) -> ([(bytes, float)]):
     result = []
     timeoutHappened = False
     while qtt > 0:
-        ir, o, e = select.select([clientSocket], [], [], 0.0)
-        if len(ir) == 0: continue
+        
+        # ir, o, e = select.select([clientSocket], [], [], 0.0)
+        # if len(ir) == 0: 
+        #     print('stuck') 
+        #     continue
         try:
             packet, flags = clientSocket.recvfrom(cfg.pcksize)
             result.append((packet, time.time()))
